@@ -53,9 +53,6 @@ private:
   
   std::vector<double> _indataLabels;
   
-  size_t _batchSize;
-  
-  
   void activateUnits(std::vector<double>& values, std::vector<double>& gradients);
   void activateOutput(std::vector<double>& values, std::vector<double>& gradients);
   // Functions
@@ -77,9 +74,9 @@ public:
   void normIndata();
   //Initial
   
-  void initialiseWeights();
+  void initialiseWeights(double stdev);
   void feedForward();
-  void backProp(int batchSize, double weightLearningRate, double biasLearningRate, size_t maxEpoch);
+  void backProp(size_t nBatchIndicator, double weightLearningRate, double biasLearningRate, size_t maxEpoch);
   
 //Informational queries
   
@@ -106,7 +103,7 @@ public:
   void writeDataToFile(char *filename);
   void writeOutValues();
   void writeWeightValues();
-  
+  void writeEpochCostUpdates(std::vector<double> epochCostUpdates);
 
 };
 

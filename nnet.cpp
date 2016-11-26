@@ -24,8 +24,7 @@ nnet::nnet(){
   _nOutputUnits = 0;
   _nInputUnits = 0;
   _nIndataRecords = 0;
-  
-  _batchSize = 1;
+
   _outputType = nnet::LIN_OUT_TYPE;
   _lossType = nnet::MSE_LOSS_TYPE;
   _activationType = nnet::LIN_ACT_TYPE;
@@ -37,7 +36,7 @@ nnet::~nnet(){
   delete _rng;
 };
 
-void nnet::initialiseWeights(){
+void nnet::initialiseWeights(double stdev){
   size_t nTotalWeights = 0;
   size_t nCurrentInputWidth = _nInputUnits;
 
@@ -54,7 +53,7 @@ void nnet::initialiseWeights(){
       _hiddenBiases.resize(i+1);
       _hiddenBiases[i].resize(_hiddenLayerSizes[i], BIAS_START);
       
-      //_rng->getGaussianVector(_hiddenWeights[i], 1.0);
+      _rng->getGaussianVector(_hiddenWeights[i], stdev);
       nCurrentInputWidth = _hiddenLayerSizes[i];
     }
   }
@@ -63,7 +62,7 @@ void nnet::initialiseWeights(){
     nTotalWeights += nCurrentInputWidth * _nOutputUnits;
     _outputWeights.resize(nCurrentInputWidth * _nOutputUnits, 0.1);
     _outputBiases.resize(_nOutputUnits, BIAS_START);
-    //_rng->getGaussianVector(_outputWeights, 1.0);
+    _rng->getGaussianVector(_outputWeights, stdev);
     nCurrentInputWidth = _nOutputUnits;
   }
   std::cout << "Total Number of Weights: " << nTotalWeights << std::endl;
@@ -734,11 +733,19 @@ void nnet::feedForward(){
   return;
 }
 
-void nnet::backProp(int batchSize, double wgtLearnRate, double biasLearnRate, size_t maxEpoch){
-  size_t nInputs, nOutputs;
+void nnet::backProp(size_t nBatchIndicator, double wgtLearnRate, double biasLearnRate, size_t nEpoch){
+  size_t nInputs, nOutputs, iData = -1;
+  
+  size_t nBatchSize;
   double initialCost = 0.0, cost = 0.0;
   std::vector<double> errorProgression;
   std::ostringstream oss;
+  
+  if (nBatchIndicator < 1){
+    nBatchSize = _nIndataRecords;
+  }else{
+    nBatchSize = nBatchIndicator;
+  }
   
   switch (_outputType){
     case nnet::LIN_OUT_TYPE:
@@ -759,7 +766,7 @@ void nnet::backProp(int batchSize, double wgtLearnRate, double biasLearnRate, si
       //printFeedForwardValues(0);
       //printFeedForwardValues(1);
       
-      inData = &_feedForwardValues[_feedForwardValues.size()-1];
+      
       outData = &_outData;
       
       errorProgression.resize(0);
@@ -767,9 +774,12 @@ void nnet::backProp(int batchSize, double wgtLearnRate, double biasLearnRate, si
       initialCost = getCost();
       errorProgression.push_back(initialCost);
       std::cout << "Initial Cost: " << initialCost <<  std::endl;
-      for(int iEpoch = 0; iEpoch < maxEpoch; iEpoch++){
-        for(int iData = 0; iData < _nIndataRecords; iData++){
+      for(int iEpoch = 0; iEpoch < nEpoch; iEpoch++){
+        
+        for(int iDataInBatch = 0; iDataInBatch < nBatchSize; iDataInBatch++){
+          iData = (iData + 1) % _nIndataRecords;
           //std::cout << "+";
+          inData = &_feedForwardValues[_feedForwardValues.size()-1];
           feedForward();
           if(iEpoch == 0 & iData == 0){
             initialCost = getCost();
@@ -807,7 +817,7 @@ void nnet::backProp(int batchSize, double wgtLearnRate, double biasLearnRate, si
 //          }
           
           //std::cout << "Here" << std::endl;
-          inData = &_feedForwardValues[_feedForwardValues.size()-1];
+          //inData = &_feedForwardValues[_feedForwardValues.size()-2];
           //biases = &_outputBiases;
           
           hiddenWeightsUpdate.resize(_hiddenWeights.size());
@@ -819,12 +829,14 @@ void nnet::backProp(int batchSize, double wgtLearnRate, double biasLearnRate, si
           
           for(size_t iWgtCount= 0; iWgtCount < _hiddenWeights.size() ; iWgtCount++){
             // We are travelling backwards through the Weight matricies
+            
             size_t iWgtMat = _hiddenWeights.size() - 1 - iWgtCount;
             if(iWgtMat == 0){
               nInputs = _nInputUnits;
             }else{
               nInputs = _hiddenLayerSizes[iWgtMat-1];
             }
+            
             inData = &_feedForwardValues[iWgtMat];
             //gradients = &_hiddenGradients[i-1];
             
@@ -900,12 +912,14 @@ void nnet::backProp(int batchSize, double wgtLearnRate, double biasLearnRate, si
             }
           }
         }
-        if ( iEpoch % 100 == 0 ){
+        std::cout << std::endl;
+        if ( iEpoch % 1 == 0 ){
           cost = getCost();
           errorProgression.push_back(cost);
           std::cout << std::endl << "Epoch " << iEpoch << "-- Cost " << cost << "-- Accuracy " << getAccuracy() << std::endl;
         }
       }
+      writeEpochCostUpdates(errorProgression);
       break;
   }
   //std::cout "Last feedforward\n";
@@ -959,6 +973,14 @@ void nnet::writeOutValues(){
   mat_ops::writeMatrix(oss.str(), _outData,_nIndataRecords,_nOutputUnits);
   return;
 }
+
+void nnet::writeEpochCostUpdates(std::vector<double> epochCostUpdates){
+  std::ostringstream oss;
+  oss << _outputDir << "epochCostUpdates.csv";
+  mat_ops::writeMatrix(oss.str(), epochCostUpdates, epochCostUpdates.size(),1);
+  return;
+}
+
 
 void nnet::printUnitType(){
   switch (_activationType){
