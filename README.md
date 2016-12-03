@@ -21,4 +21,5 @@ On the short term stack....
 5. Dropout in learning
 6. Convergence checking in weight fitting?
 7. PCA (and other preprocessing options)
-8. R package code, with graphical diagnostics (better do this sooner rather than later for testing) 
+8. R package code, with graphical diagnostics (better do this sooner rather than later for testing)
+9. Randomisation of input data with label-stratified sampling
