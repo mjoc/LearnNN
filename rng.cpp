@@ -33,3 +33,10 @@ void rng::getGaussianVector(std::vector<double>& dataToFill, double stdev){
     }
     return;
 }
+
+void rng::getShuffled(std::vector<int>& indata){
+  
+  gsl_ran_shuffle (_rng, indata.data(), indata.size(), sizeof (int));
+  
+  return;
+}

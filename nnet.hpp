@@ -24,8 +24,13 @@ public:
     CROSS_ENT_TYPE
   };
   
-private:
+  enum normDataType
+  {
+    DATA_STAN_NORM,
+    DATA_RANGE_BOUND
+  };
   
+private:
   rng *_rng;
   std::string _outputDir;
   activationType _activationType;
@@ -33,8 +38,18 @@ private:
   lossType _lossType;
   size_t _nInputUnits;
   size_t _nOutputUnits;
-  bool _firstFeedforward;
+
   bool _indataNormed;
+  bool _indataShuffled;
+  bool _weightsInitialised;
+  bool _indataLoaded;
+  bool _outdataCreated;
+  bool _indataLabelsLoaded;
+
+  normDataType _indataNormType;
+  std::vector<double> _indataNormParam1;
+  std::vector<double> _indataNormParam2;
+  std::vector<int> _indataShuffleIndex;
   std::vector<int> _hiddenLayerSizes;
   std::vector<std::vector<double> > _hiddenWeights;
   std::vector<std::vector<double> > _hiddenBiases;
@@ -44,12 +59,7 @@ private:
   std::vector<double> _outputGradients;
   std::vector<std::vector<double> > _feedForwardValues;
   std::vector<double> _outData;
-  bool _indataLoaded;
-  bool _outdataCreated;
-  bool _indataLabelsLoaded;
   size_t _nIndataRecords;
-  std::vector<double> norm_means;
-  std::vector<double> norm_stds;
   
   std::vector<double> _indataLabels;
   
@@ -60,7 +70,7 @@ public:
   nnet();
   ~nnet();
   
-// Inport Date Methods
+// Import Date Methods
   bool loadDataFromFile(char *filename, bool hasHeader, char delim);
   bool loadLabelsFromFile(char *filename, bool hasHeader, char delim);
   
@@ -71,15 +81,24 @@ public:
   void setLossType(lossType lossType);
 
 // Preprocessing methods
-  void normIndata();
-  //Initial
+  void normIndata(normDataType normType);
+  void shuffleIndata();
   
+  // Weight fitting stuff
   void initialiseWeights(double stdev);
   void feedForward();
-  void backProp(size_t nBatchIndicator, double weightLearningRate, double biasLearningRate, size_t maxEpoch);
+  void backProp(size_t nBatchIndicator,
+                double wgtLearnRate,
+                double biasLearnRate,
+                size_t nEpoch,
+                bool doMomentum,
+                double mom_mu,
+                double mom_decay,
+                size_t mom_decay_schedule,
+                double mom_final);
   
-//Informational queries
   
+  //Informational queries
   bool dataLoaded();
   bool numericLabels();
   bool classLabels();

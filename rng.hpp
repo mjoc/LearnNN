@@ -12,9 +12,11 @@ public:
     rng();
     rng(long seed);
     ~rng();
+    void setSeed(long seed);  
     void getUniformVector(std::vector<double>& dataToFill);
     void getGaussianVector(std::vector<double>& dataToFill, double stdev);
-    void setSeed(long seed);
+    void getShuffled(std::vector<int>& indata);
+  
 };
 
 #endif
