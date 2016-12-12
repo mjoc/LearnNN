@@ -43,7 +43,7 @@ private:
   bool _trainDataShuffled;
   bool _trainDataPCA;
   size_t _nTrainDataRecords;
-  std::vector<double> _indataLabels;
+  std::vector<double> _trainDataLabels;
   // The input is considered the first feedforward
   std::vector<std::vector<double> > _trainDataFeedForwardValues;
   
@@ -143,15 +143,22 @@ public:
                 double mom_mu,
                 double mom_decay,
                 size_t mom_decay_schedule,
-                double mom_final);
+                double mom_final,
+                bool doTestCost);
   void feedForwardNonTrainData();
+  
+  std::vector<double> _epochTrainCostUpdates;
+  std::vector<double> _epochTestCostUpdates;
   
   //Informational queries
   bool dataLoaded();
   bool numericLabels();
   bool classLabels();
-  double getCost();
-  double getAccuracy();
+  double getTrainDataCost();
+  double getTrainDataAccuracy();
+  double getNonTrainDataCost();
+  double getNonTrainDataAccuracy();
+  
   
 // Print to screen methods
   void printOutValues();
@@ -174,8 +181,9 @@ public:
   void writeDataToFile(char *filename);
   void writeOutValues();
   void writeWeightValues();
-  void writeEpochCostUpdates(std::vector<double> epochCostUpdates);
-
+  void writeEpochCostUpdates();
+  void writeEpochTrainCostUpdates();
+  void writeEpochTestCostUpdates();
 };
 
 #endif

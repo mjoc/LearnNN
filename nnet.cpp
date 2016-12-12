@@ -130,7 +130,7 @@ bool nnet::loadTrainDataLabelsFromFile(char *filename, bool hasHeader, char deli
   double dataValue;
   
   _trainDataLabelsLoaded = false;
-  _indataLabels.resize(0);
+  _trainDataLabels.resize(0);
   _nOutputUnits = 0;
   
   std::ifstream infile(filename, std::ios_base::in);
@@ -170,7 +170,7 @@ bool nnet::loadTrainDataLabelsFromFile(char *filename, bool hasHeader, char deli
           std::vector<int> rowValues = std::vector<int>(std::istream_iterator<int>(in), std::istream_iterator<int>());
           for (std::vector<int>::const_iterator it(rowValues.begin()), end(rowValues.end()); it != end; ++it) {
             dataValue = *it;
-            _indataLabels.push_back(dataValue);
+            _trainDataLabels.push_back(dataValue);
           }
         }else{
           break;
@@ -181,7 +181,7 @@ bool nnet::loadTrainDataLabelsFromFile(char *filename, bool hasHeader, char deli
   if(allOk){
     _trainDataLabelsLoaded = true;
     _nOutputUnits = nDelims + 1;
-    std::cout << "Read " << _indataLabels.size() << " class labels of " << nRecords << " by " << _nOutputUnits << std::endl;
+    std::cout << "Read " << _trainDataLabels.size() << " class labels of " << nRecords << " by " << _nOutputUnits << std::endl;
   }
   return allOk;
 };
@@ -526,7 +526,7 @@ void nnet::shuffleTrainData(){
   if(_trainDataLoaded){
     for(int iLabel = 0; iLabel < _nTrainDataRecords; iLabel++ ){
       for(int iLabelClass = 0; iLabelClass < _nOutputUnits; iLabelClass++){
-        if(_indataLabels[iLabel * _nOutputUnits + iLabelClass] > 0.8){
+        if(_trainDataLabels[iLabel * _nOutputUnits + iLabelClass] > 0.8){
           indataShuffle[iLabelClass].push_back(iLabel);
           break;
         }
@@ -691,7 +691,7 @@ bool nnet::dataLoaded(){
   return _trainDataLoaded;
 }
 
-double nnet::getCost(){
+double nnet::getTrainDataCost(){
   double cost = 0.0;
   switch (_outputType){
     case nnet::LIN_OUT_TYPE:
@@ -701,7 +701,7 @@ double nnet::getCost(){
       cost = 0.0;
       for(int iData = 0; iData < _nTrainDataRecords; ++iData){
         for(int iUnit = 0; iUnit < _nOutputUnits; ++iUnit){
-          if(_indataLabels[(iData*_nOutputUnits)+iUnit] > 0.5){
+          if(_trainDataLabels[(iData*_nOutputUnits)+iUnit] > 0.5){
             cost -= log( _trainGeneratedLabels[(iData*_nOutputUnits)+iUnit]);
           }
         }
@@ -710,7 +710,7 @@ double nnet::getCost(){
   return cost;
 }
 
-double nnet::getAccuracy(){
+double nnet::getTrainDataAccuracy(){
   double accuracy = 0.0;
   double maxProb = 0.0;
   bool correct = false;
@@ -718,7 +718,7 @@ double nnet::getAccuracy(){
     for(int iOutput = 0; iOutput < _nOutputUnits; ++iOutput){
       if(iOutput == 0){
         maxProb = _trainGeneratedLabels[(iData*_nOutputUnits)+iOutput];
-        if(_indataLabels[(iData*_nOutputUnits)+iOutput] > 0.5){
+        if(_trainDataLabels[(iData*_nOutputUnits)+iOutput] > 0.5){
           correct = true;
         }else{
           correct = false;
@@ -726,7 +726,7 @@ double nnet::getAccuracy(){
       }else{
         if(_trainGeneratedLabels[(iData*_nOutputUnits)+iOutput] > maxProb){
           maxProb = _trainGeneratedLabels[(iData*_nOutputUnits)+iOutput];
-          if(_indataLabels[(iData*_nOutputUnits)+iOutput] > 0.5){
+          if(_trainDataLabels[(iData*_nOutputUnits)+iOutput] > 0.5){
             correct = true;
           }else{
             correct = false;
@@ -740,6 +740,68 @@ double nnet::getAccuracy(){
   accuracy /= _nTrainDataRecords;
   return accuracy;
 }
+
+double nnet::getNonTrainDataCost(){
+  bool canDo = true;
+  if(!_nonTrainDataLoaded){
+    std::cout << "Non Train Data no loaded";
+    canDo = false;
+  }
+  if(!_nonTrainDataLabelsLoaded){
+    std::cout << "Non Train Data Labels not loaded";
+    canDo = false;
+  }
+
+  double cost = 0.0;
+  switch (_outputType){
+    case nnet::LIN_OUT_TYPE:
+      // do nothing
+      break;
+    case  nnet::CROSS_ENT_TYPE:
+      cost = 0.0;
+      for(int iData = 0; iData < _nNonTrainDataRecords; ++iData){
+        for(int iUnit = 0; iUnit < _nOutputUnits; ++iUnit){
+          if(_nonTrainDataLabels[(iData*_nOutputUnits)+iUnit] > 0.5){
+            cost -= log( _nonTrainGeneratedLabels[(iData*_nOutputUnits)+iUnit]);
+          }
+        }
+      }
+  }
+  return cost;
+}
+
+double nnet::getNonTrainDataAccuracy(){
+  double accuracy = 0.0;
+  double maxProb = 0.0;
+  bool correct = false;
+  for(int iData = 0; iData < _nNonTrainDataRecords; ++iData){
+    for(int iOutput = 0; iOutput < _nOutputUnits; ++iOutput){
+      if(iOutput == 0){
+        maxProb = _nonTrainGeneratedLabels[(iData*_nOutputUnits)+iOutput];
+        if(_nonTrainDataLabels[(iData*_nOutputUnits)+iOutput] > 0.5){
+          correct = true;
+        }else{
+          correct = false;
+        }
+      }else{
+        if(_nonTrainGeneratedLabels[(iData*_nOutputUnits)+iOutput] > maxProb){
+          maxProb = _nonTrainGeneratedLabels[(iData*_nOutputUnits)+iOutput];
+          if(_nonTrainDataLabels[(iData*_nOutputUnits)+iOutput] > 0.5){
+            correct = true;
+          }else{
+            correct = false;
+          }
+        }
+      }
+      
+    }
+    if(correct){accuracy += 1.0;}
+  }
+  accuracy /= _nNonTrainDataRecords;
+  return accuracy;
+}
+
+
 
 void nnet::feedForwardTrainData(){
   size_t nInputRows, nInputCols, nWeightsCols;
@@ -869,39 +931,38 @@ void nnet::feedForwardNonTrainData(){
   std::vector<double> tempMatrixForLabels;
   bool dataCorrect = true;
   
-  if(_nonTrainDataLoaded){
-    if(_nonTrainDataLoaded){
-      std::cout << "No 'non-train' data loaded!";
-      dataCorrect = false;
-    }
-    if(_nNonTrainDataRecords == 0){
-      std::cout << "No 'non-train' data loaded!";
-      dataCorrect = false;
-    }
-    if(_trainDataNormType == nnet::DATA_NORM_NONE && _nonTrainDataNormType != nnet::DATA_NORM_NONE){
-      std::cout << "Train data was normalised, but 'non-train' was not!";
-      dataCorrect = false;
-    }
-    if(_nonTrainDataNormType != nnet::DATA_NORM_NONE && _nonTrainDataNormType == nnet::DATA_NORM_NONE ){
-      std::cout << "Non-train data was normalised, but train was not!";
-      dataCorrect = false;
-    }
-    if(_trainDataPCA & !_nonTrainDataPCA){
-      std::cout << "Train data was PCA'd but 'non-train' was not!";
-      dataCorrect = false;
-    }
-    if(_nonTrainDataPCA & !_trainDataPCA ){
-      std::cout << "Non-train data was PCA'd, but train was not!";
-      dataCorrect = false;
-    }
-    if(_nNonTrainDataInputUnits != _nInputUnits){
-      std::cout << "Differnet in dimension of Train (" << _nInputUnits<< ") and non-Train (" << _nNonTrainDataInputUnits << ")";
-      dataCorrect = false;
-    }
-    if(_nNonTrainDataInputUnits != _nInputUnits){
-      std::cout << "Different in dimension of Train Labels (" << _nOutputUnits<< ") and non-Train Labels (" << _nNonTrainDataOutputUnits << ")";
-      dataCorrect = false;
-    }
+  if(!_nonTrainDataLoaded){
+    std::cout << "No 'non-train' data loaded!";
+    dataCorrect = false;
+  }
+  if(_nNonTrainDataRecords == 0){
+    std::cout << "No 'non-train' data loaded!";
+    dataCorrect = false;
+  }
+  if(_trainDataNormType == nnet::DATA_NORM_NONE && _nonTrainDataNormType != nnet::DATA_NORM_NONE){
+    std::cout << "Train data was normalised, but 'non-train' was not!";
+    dataCorrect = false;
+  }
+  if(_nonTrainDataNormType != nnet::DATA_NORM_NONE && _nonTrainDataNormType == nnet::DATA_NORM_NONE ){
+    std::cout << "Non-train data was normalised, but train was not!";
+    dataCorrect = false;
+  }
+  if(_trainDataPCA & !_nonTrainDataPCA){
+    std::cout << "Train data was PCA'd but 'non-train' was not!";
+    dataCorrect = false;
+  }
+  if(_nonTrainDataPCA & !_trainDataPCA ){
+    std::cout << "Non-train data was PCA'd, but train was not!";
+    dataCorrect = false;
+  }
+  if(_nNonTrainDataInputUnits != _nInputUnits){
+    std::cout << "Differnet in dimension of Train (" << _nInputUnits<< ") and non-Train (" << _nNonTrainDataInputUnits << ")";
+    dataCorrect = false;
+  }
+  if(_nNonTrainDataInputUnits != _nInputUnits){
+    std::cout << "Different in dimension of Train Labels (" << _nOutputUnits<< ") and non-Train Labels (" << _nNonTrainDataOutputUnits << ")";
+    dataCorrect = false;
+    
   }
   if(dataCorrect){
     _nonTrainLabelsGenerated = false;
@@ -977,7 +1038,7 @@ void nnet::flowDataThroughNetwork(std::vector<std::vector<double> > dataflowStag
   
   mat_ops::matMul(nInputRows,
                    nInputCols ,
-                   dataflowStages[_nonTrainDataFeedForwardValues.size()-1] ,
+                   dataflowStages[dataflowStages.size()-1] ,
                    nWeightsCols,
                    _outputWeights,
                    dataflowMatrix);
@@ -997,19 +1058,35 @@ void nnet::backProp(size_t nBatchIndicator,
                     double mom_mu,
                     double mom_decay,
                     size_t mom_decay_schedule,
-                    double mom_final){
+                    double mom_final,
+                    bool doTestCost){
   size_t nInputs, nOutputs, iDataStart, iDataStop;
   
   size_t nBatchSize;
-  double initialCost = 0.0, cost = 0.0;
+  double initialCost = 0.0, cost = 0.0, testCost = 0.0;
   double momentum_mu = mom_mu;
-  std::vector<double> errorProgression;
+  //std::vector<double> errorProgression;
   std::ostringstream oss;
+  
+  _epochTrainCostUpdates.resize(0);
+  _epochTestCostUpdates.resize(0);
+  
   
   if (nBatchIndicator < 1){
     nBatchSize = _nTrainDataRecords;
   }else{
     nBatchSize = nBatchIndicator;
+  }
+  
+  if(doTestCost){
+    if (!_nonTrainDataLoaded){
+      doTestCost = false;
+      std::cout << "There is no Non-Train data load, cannot calculate test error\n";
+    }
+    if(!_trainDataLabelsLoaded){
+      doTestCost = false;
+      std::cout << "There is no Non-Train data Labels loaded, cannot calculate test error\n";
+    }
   }
   
   switch (_outputType){
@@ -1060,10 +1137,16 @@ void nnet::backProp(size_t nBatchIndicator,
       feedForwardTrainData();
  
       outData = &_trainGeneratedLabels;
-      errorProgression.resize(0);
-      initialCost = getCost();
-      errorProgression.push_back(initialCost);
+      initialCost = getTrainDataCost();
+      _epochTrainCostUpdates.push_back(initialCost);
       std::cout << "Initial Cost: " << initialCost <<  std::endl;
+      if(doTestCost){
+        feedForwardNonTrainData();
+        testCost = getNonTrainDataCost();
+        _epochTestCostUpdates.push_back(testCost);
+        std::cout << "Initial Test Cost: " << testCost <<  std::endl;
+      }
+      
       size_t nIterations =  _nTrainDataRecords/nBatchSize;
       if (nIterations*nBatchSize < _nTrainDataRecords){
         nIterations++;
@@ -1091,7 +1174,7 @@ void nnet::backProp(size_t nBatchIndicator,
           inData = &_trainDataFeedForwardValues[_trainDataFeedForwardValues.size()-1];
           feedForwardTrainData();
           if(iEpoch == 0 & iDataStart == 0){
-            initialCost = getCost();
+            initialCost = getTrainDataCost();
             std::cout << "Initial Cost Check: " << initialCost <<  std::endl;
           }
           
@@ -1117,12 +1200,12 @@ void nnet::backProp(size_t nBatchIndicator,
             // Softmax with cross entrophy has a simple derviative form for the weights on the input to the output units
             for(int iInput = 0; iInput < _hiddenLayerSizes[_hiddenLayerSizes.size()-1]; ++iInput){
               for(int iOutput = 0; iOutput < nOutputs; ++iOutput){
-                outputWeightsUpdate[(iInput*nOutputs)+iOutput] += (*inData)[(iDataInBatch*nInputs)+iInput] * (_trainGeneratedLabels[(iDataInBatch*nOutputs)+iOutput]-_indataLabels[(iDataInBatch*nOutputs)+iOutput]);
+                outputWeightsUpdate[(iInput*nOutputs)+iOutput] += (*inData)[(iDataInBatch*nInputs)+iInput] * (_trainGeneratedLabels[(iDataInBatch*nOutputs)+iOutput]-_trainDataLabels[(iDataInBatch*nOutputs)+iOutput]);
               }
             }
             // Bias units have a 1 for the input weights of the unit, otherwise same as above
             for(int iBias = 0; iBias < nOutputs; ++iBias){
-              outputBiasesUpdate[iBias] += (_trainGeneratedLabels[(iDataInBatch*_nOutputUnits)+iBias]-_indataLabels[(iDataInBatch*_nOutputUnits)+iBias]);
+              outputBiasesUpdate[iBias] += (_trainGeneratedLabels[(iDataInBatch*_nOutputUnits)+iBias]-_trainDataLabels[(iDataInBatch*_nOutputUnits)+iBias]);
             }
           }
           forwardWeightsUpdate = &outputWeightsUpdate;
@@ -1214,10 +1297,18 @@ void nnet::backProp(size_t nBatchIndicator,
             }
           }
         }
-      
-        cost = getCost();
-        errorProgression.push_back(cost);
-        std::cout << std::endl << "Epoch " << iEpoch << "-- Cost " << cost << "-- Accuracy " << getAccuracy() << "  ("  << getAccuracy() * _nTrainDataRecords << ")" << std::endl;
+        
+        //feedForwardTrainData();
+        cost = getTrainDataCost();
+        _epochTrainCostUpdates.push_back(cost);
+        std::cout << std::endl << "Epoch " << iEpoch << "-- Cost " << cost << "-- Accuracy " << getTrainDataAccuracy() << "  ("  << getTrainDataAccuracy() * _nTrainDataRecords << ")" << std::endl;
+        
+        if(doTestCost){
+          feedForwardNonTrainData();
+          testCost = getNonTrainDataCost();
+          _epochTestCostUpdates.push_back(testCost);
+          std::cout << "Test Cost: " << testCost <<  std::endl;
+        }
         
       }
       break;
@@ -1225,9 +1316,9 @@ void nnet::backProp(size_t nBatchIndicator,
   //std::cout "Last feedforward\n";
   feedForwardTrainData();
   
-  cost = getCost();
+  cost = getTrainDataCost();
   std::cout <<  " Cost went from " << initialCost << " to " <<  cost << std::endl;
-  writeEpochCostUpdates(errorProgression);
+
   return;
 }
 
@@ -1279,12 +1370,20 @@ void nnet::writeOutValues(){
   return;
 }
 
-void nnet::writeEpochCostUpdates(std::vector<double> epochCostUpdates){
+void nnet::writeEpochTrainCostUpdates(){
   std::ostringstream oss;
-  oss << _outputDir << "epochCostUpdates.csv";
-  mat_ops::writeMatrix(oss.str(), epochCostUpdates, epochCostUpdates.size(),1);
+  oss << _outputDir << "epochTrainCostUpdates.csv";
+  mat_ops::writeMatrix(oss.str(), _epochTrainCostUpdates, _epochTrainCostUpdates.size(),1);
   return;
 }
+
+void nnet::writeEpochTestCostUpdates(){
+  std::ostringstream oss;
+  oss << _outputDir << "epochTestCostUpdates.csv";
+  mat_ops::writeMatrix(oss.str(), _epochTestCostUpdates, _epochTestCostUpdates.size(),1);
+  return;
+}
+
 
 void nnet::printUnitType(){
   switch (_activationType){
@@ -1328,7 +1427,7 @@ void nnet::printLabels(){
     for(int i = 0; i < _nTrainDataRecords; i++){
       std::cout << "Record " << i + 1 << ": ";
       for(int j = 0; j < _nOutputUnits; j++){
-        std::cout << _indataLabels[(i*_nOutputUnits)+j] << " | ";
+        std::cout << _trainDataLabels[(i*_nOutputUnits)+j] << " | ";
       }
       std::cout << std::endl;
     }
