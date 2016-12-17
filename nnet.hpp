@@ -135,7 +135,7 @@ public:
   // Weight fitting stuff
   void initialiseWeights(double stdev);
   void feedForwardTrainData();
-  void backProp(size_t nBatchIndicator,
+  bool backProp(size_t nBatchIndicator,
                 double wgtLearnRate,
                 double biasLearnRate,
                 size_t nEpoch,
@@ -166,7 +166,8 @@ public:
   void printTrainData(size_t rows);
   void printNonTrainData();
   void printNonTrainData(size_t rows);
-  void printLabels();
+  void printTrainLabels();
+  void printNonTrainLabels();
   void printWeights(int iLayer);
   void printOutputWeights();
   void printGradients(int iLayer);

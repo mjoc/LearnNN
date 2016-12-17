@@ -44,283 +44,6 @@ nnet::~nnet(){
   delete _rng;
 };
 
-bool nnet::loadTrainDataFromFile(char *filename, bool hasHeader, char delim){
-  bool allOk = true;
-  bool first = true;
-  int nRecords = 0;
-  size_t nDelims = 0;
-  double dataValue;
-  //std::vector<double> *indata_ptr = new std::vector<double>;
-  
-  _trainDataLabelsLoaded = false;
-  _trainDataLoaded = false;
-  
-  _nInputUnits = 0;
-  _nTrainDataRecords = 0;
-
-  _trainDataNormType = nnet::DATA_NORM_NONE;
-  _trainDataPCA = false;
-  _trainLabelsGenerated = false;
-  _weightsInitialised = false;
-  
-  std::ifstream infile(filename, std::ios_base::in);
-  
-  if (!infile.is_open()){
-    allOk = false;
-  }else{
-    std::cout << "Reading in data from file " << filename << std::endl;
-    _trainDataFeedForwardValues.resize(1);
-    _trainDataFeedForwardValues[0].resize(0);
-    if(hasHeader){
-      std::string headerline;
-      std::getline(infile, headerline);
-      nDelims = std::count(headerline.begin(), headerline.end(), delim);
-      first = false;
-    }
-    // http://stackoverflow.com/questions/18818777/c-program-for-reading-an-unknown-size-csv-file-filled-only-with-floats-with
-    
-    for (std::string line; std::getline(infile, line); )
-    {
-      if(line.find_first_not_of(' ') == std::string::npos){
-        break;
-      }else{
-        nRecords++;
-        if(first){
-          nDelims = std::count(line.begin(), line.end(), delim);
-          first = false;
-        }else{
-          if(nDelims != std::count(line.begin(), line.end(), delim)){
-            std::cout << "Problem with line " << nRecords << "; it has " << std::count(line.begin(), line.end(), delim) << " delimiters, expected " << nDelims << std::endl;
-            allOk = false;
-          }
-        }
-        
-        std::replace(line.begin(), line.end(), delim, ' ');
-        std::istringstream in(line);
-        
-        
-        if(allOk){
-          std::vector<double> rowValues = std::vector<double>(std::istream_iterator<double>(in), std::istream_iterator<double>());
-          for (std::vector<double>::const_iterator it(rowValues.begin()), end(rowValues.end()); it != end; ++it) {
-            dataValue = *it;
-            _trainDataFeedForwardValues[0].push_back(dataValue);
-          }
-        }else{
-          break;
-        }
-      }
-    }
-  }
-  if(allOk){
-    //_trainDataFeedForwardValues.push_back(*indata_ptr);
-    _trainDataLoaded = true;
-    _trainDataShuffled = false;
-    _nTrainDataRecords = nRecords;
-    _nInputUnits = nDelims + 1;
-    std::cout << "Read " << _trainDataFeedForwardValues[0].size() << " data of " << nRecords << " by " << nDelims + 1 << std::endl;
-  }
-  return allOk;
-};
-
-bool nnet::loadTrainDataLabelsFromFile(char *filename, bool hasHeader, char delim){
-  bool allOk = true;
-  bool first = true;
-  int nRecords = 0;
-  size_t nDelims = 0;
-  double dataValue;
-  
-  _trainDataLabelsLoaded = false;
-  _trainDataLabels.resize(0);
-  _nOutputUnits = 0;
-  
-  std::ifstream infile(filename, std::ios_base::in);
-  
-  if (!infile.is_open()){
-    allOk = false;
-  }else{
-    std::cout << "Reading in data from file " << filename << std::endl;
-    if(hasHeader){
-      std::string headerline;
-      std::getline(infile, headerline);
-      nDelims = std::count(headerline.begin(), headerline.end(), delim);
-      first = false;
-    }
-    // http://stackoverflow.com/questions/18818777/c-program-for-reading-an-unknown-size-csv-file-filled-only-with-floats-with
-    
-    for (std::string line; std::getline(infile, line); )
-    {
-      if(line.find_first_not_of(' ') == std::string::npos){
-        break;
-      }else{
-        nRecords++;
-        if(first){
-          nDelims = std::count(line.begin(), line.end(), delim);
-          first = false;
-        }else{
-          if(nDelims != std::count(line.begin(), line.end(), delim)){
-            std::cout << "Problem with line " << nRecords << "; it has " << std::count(line.begin(), line.end(), delim) << " delimiters, expected " << nDelims << std::endl;
-            allOk = false;
-          }
-        }
-        
-        std::replace(line.begin(), line.end(), delim, ' ');
-        std::istringstream in(line);
-        
-        if(allOk){
-          std::vector<int> rowValues = std::vector<int>(std::istream_iterator<int>(in), std::istream_iterator<int>());
-          for (std::vector<int>::const_iterator it(rowValues.begin()), end(rowValues.end()); it != end; ++it) {
-            dataValue = *it;
-            _trainDataLabels.push_back(dataValue);
-          }
-        }else{
-          break;
-        }
-      }
-    }
-  }
-  if(allOk){
-    _trainDataLabelsLoaded = true;
-    _nOutputUnits = nDelims + 1;
-    std::cout << "Read " << _trainDataLabels.size() << " class labels of " << nRecords << " by " << _nOutputUnits << std::endl;
-  }
-  return allOk;
-};
-
-bool nnet::loadNonTrainDataFromFile(char *filename, bool hasHeader, char delim){
-  bool allOk = true;
-  bool first = true;
-  int nRecords = 0;
-  size_t nDelims = 0;
-  double dataValue;
-  
-  _nonTrainDataLabelsLoaded = false;
-  _nonTrainDataLoaded = false;
-  
-  _nNonTrainDataRecords = 0;
-  _trainDataNormType = nnet::DATA_NORM_NONE;
-  _nonTrainDataPCA = false;
-  
-  std::ifstream infile(filename, std::ios_base::in);
-  
-  if (!infile.is_open()){
-    allOk = false;
-  }else{
-    std::cout << "Reading in data from file " << filename << std::endl;
-    _nonTrainDataFeedForwardValues.resize(1);
-    _nonTrainDataFeedForwardValues[0].resize(0);
-    if(hasHeader){
-      std::string headerline;
-      std::getline(infile, headerline);
-      nDelims = std::count(headerline.begin(), headerline.end(), delim);
-      first = false;
-    }
-    // http://stackoverflow.com/questions/18818777/c-program-for-reading-an-unknown-size-csv-file-filled-only-with-floats-with
-    
-    for (std::string line; std::getline(infile, line); )
-    {
-      if(line.find_first_not_of(' ') == std::string::npos){
-        break;
-      }else{
-        nRecords++;
-        if(first){
-          nDelims = std::count(line.begin(), line.end(), delim);
-          first = false;
-        }else{
-          if(nDelims != std::count(line.begin(), line.end(), delim)){
-            std::cout << "Problem with line " << nRecords << "; it has " << std::count(line.begin(), line.end(), delim) << " delimiters, expected " << nDelims << std::endl;
-            allOk = false;
-          }
-        }
-        
-        std::replace(line.begin(), line.end(), delim, ' ');
-        std::istringstream in(line);
-        
-        
-        if(allOk){
-          std::vector<double> rowValues = std::vector<double>(std::istream_iterator<double>(in), std::istream_iterator<double>());
-          for (std::vector<double>::const_iterator it(rowValues.begin()), end(rowValues.end()); it != end; ++it) {
-            dataValue = *it;
-            _nonTrainDataFeedForwardValues[0].push_back(dataValue);
-          }
-        }else{
-          break;
-        }
-      }
-    }
-  }
-  if(allOk){
-    //_testFeedForwardValues.push_back(*indata_ptr);
-    _nonTrainDataLoaded = true;
-    _nNonTrainDataRecords = nRecords;
-    _nNonTrainDataInputUnits = nDelims + 1;
-    std::cout << "Read " << _nonTrainDataFeedForwardValues[0].size() << " data of " << nRecords << " by " << nDelims + 1 << std::endl;
-  }
-  return allOk;
-};
-
-bool nnet::loadNonTrainDataLabelsFromFile(char *filename, bool hasHeader, char delim){
-  bool allOk = true;
-  bool first = true;
-  int nRecords = 0;
-  size_t nDelims = 0;
-  double dataValue;
-  
-  _nonTrainDataLabelsLoaded = false;
-  _nonTrainDataLabels.resize(0);
-  
-  std::ifstream infile(filename, std::ios_base::in);
-  
-  if (!infile.is_open()){
-    allOk = false;
-  }else{
-    std::cout << "Reading in data from file " << filename << std::endl;
-    if(hasHeader){
-      std::string headerline;
-      std::getline(infile, headerline);
-      nDelims = std::count(headerline.begin(), headerline.end(), delim);
-      first = false;
-    }
-    // http://stackoverflow.com/questions/18818777/c-program-for-reading-an-unknown-size-csv-file-filled-only-with-floats-with
-    
-    for (std::string line; std::getline(infile, line); )
-    {
-      if(line.find_first_not_of(' ') == std::string::npos){
-        break;
-      }else{
-        nRecords++;
-        if(first){
-          nDelims = std::count(line.begin(), line.end(), delim);
-          first = false;
-        }else{
-          if(nDelims != std::count(line.begin(), line.end(), delim)){
-            std::cout << "Problem with line " << nRecords << "; it has " << std::count(line.begin(), line.end(), delim) << " delimiters, expected " << nDelims << std::endl;
-            allOk = false;
-          }
-        }
-        
-        std::replace(line.begin(), line.end(), delim, ' ');
-        std::istringstream in(line);
-        
-        if(allOk){
-          std::vector<int> rowValues = std::vector<int>(std::istream_iterator<int>(in), std::istream_iterator<int>());
-          for (std::vector<int>::const_iterator it(rowValues.begin()), end(rowValues.end()); it != end; ++it) {
-            dataValue = *it;
-            _nonTrainDataLabels.push_back(dataValue);
-          }
-        }else{
-          break;
-        }
-      }
-    }
-  }
-  if(allOk){
-    _nonTrainDataLabelsLoaded = true;
-    _nNonTrainDataOutputUnits = nDelims + 1;
-    std::cout << "Read " << _nonTrainDataLabels.size() << " class labels of " << nRecords << " by " << _nOutputUnits << std::endl;
-  }
-  return allOk;
-};
-
 void nnet::setHiddenLayerSizes(const std::vector<int>& layerSizes){
   _hiddenLayerSizes.resize(0);
   for(std::vector<int>::const_iterator it = layerSizes.begin(); it != layerSizes.end(); ++it) {
@@ -512,7 +235,6 @@ void nnet::normNonTrainData(normDataType normType){
   
 }
 
-
 void nnet::shuffleTrainData(){
   std::vector<std::vector<int> > indataShuffle;
   std::vector<int> iClassShuffle;
@@ -630,7 +352,6 @@ void nnet::activateUnitsAndCalcGradients(std::vector<double>& values, std::vecto
     case LIN_ACT_TYPE:
       for (int i= 0; i < values.size(); i++) {
         gradients[i] =  values[i];
-
       }
       break;
     case RELU_ACT_TYPE:
@@ -642,8 +363,6 @@ void nnet::activateUnitsAndCalcGradients(std::vector<double>& values, std::vecto
   }
   return;
 };
-
-
 
 void nnet::activateOutput(std::vector<double>& values){
   switch (_outputType){
@@ -685,17 +404,21 @@ void nnet::activateOutput(std::vector<double>& values){
   
 }
 
-
-
 bool nnet::dataLoaded(){
   return _trainDataLoaded;
 }
 
 double nnet::getTrainDataCost(){
   double cost = 0.0;
-  switch (_outputType){
-    case nnet::LIN_OUT_TYPE:
-      // do nothing
+  switch (_lossType){
+    case nnet::MSE_LOSS_TYPE:
+      cost = 0.0;
+      for(int iData = 0; iData < _nTrainDataRecords; ++iData){
+        for(int iUnit = 0; iUnit < _nOutputUnits; ++iUnit){
+          cost += pow(_trainGeneratedLabels[(iData*_nOutputUnits)+iUnit] - _trainDataLabels[(iData*_nOutputUnits)+iUnit],2.0)/_nTrainDataRecords;
+        }
+      }
+
       break;
     case  nnet::CROSS_ENT_TYPE:
       cost = 0.0;
@@ -753,9 +476,15 @@ double nnet::getNonTrainDataCost(){
   }
 
   double cost = 0.0;
-  switch (_outputType){
-    case nnet::LIN_OUT_TYPE:
-      // do nothing
+  switch (_lossType){
+    case nnet::MSE_LOSS_TYPE:
+      cost = 0.0;
+      for(int iData = 0; iData < _nTrainDataRecords; ++iData){
+        for(int iUnit = 0; iUnit < _nOutputUnits; ++iUnit){
+          cost += pow(_trainGeneratedLabels[(iData*_nOutputUnits)+iUnit] - _trainDataLabels[(iData*_nOutputUnits)+iUnit],2.0)/_nTrainDataRecords;
+        }
+      }
+      
       break;
     case  nnet::CROSS_ENT_TYPE:
       cost = 0.0;
@@ -800,8 +529,6 @@ double nnet::getNonTrainDataAccuracy(){
   accuracy /= _nNonTrainDataRecords;
   return accuracy;
 }
-
-
 
 void nnet::feedForwardTrainData(){
   size_t nInputRows, nInputCols, nWeightsCols;
@@ -932,27 +659,28 @@ void nnet::feedForwardNonTrainData(){
   bool dataCorrect = true;
   
   if(!_nonTrainDataLoaded){
-    std::cout << "No 'non-train' data loaded!";
+    std::cout << "No 'non-train' data loaded!\n";
     dataCorrect = false;
-  }
-  if(_nNonTrainDataRecords == 0){
-    std::cout << "No 'non-train' data loaded!";
-    dataCorrect = false;
+  }else{
+    if(_nNonTrainDataRecords == 0){
+      std::cout << "No 'non-train' data loaded!\n";
+      dataCorrect = false;
+    }
   }
   if(_trainDataNormType == nnet::DATA_NORM_NONE && _nonTrainDataNormType != nnet::DATA_NORM_NONE){
-    std::cout << "Train data was normalised, but 'non-train' was not!";
+    std::cout << "Train data was normalised, but 'non-train' was not!\n";
     dataCorrect = false;
   }
   if(_nonTrainDataNormType != nnet::DATA_NORM_NONE && _nonTrainDataNormType == nnet::DATA_NORM_NONE ){
-    std::cout << "Non-train data was normalised, but train was not!";
+    std::cout << "Non-train data was normalised, but train was not!\n";
     dataCorrect = false;
   }
   if(_trainDataPCA & !_nonTrainDataPCA){
-    std::cout << "Train data was PCA'd but 'non-train' was not!";
+    std::cout << "Train data was PCA'd but 'non-train' was not!\n";
     dataCorrect = false;
   }
   if(_nonTrainDataPCA & !_trainDataPCA ){
-    std::cout << "Non-train data was PCA'd, but train was not!";
+    std::cout << "Non-train data was PCA'd, but train was not!\n";
     dataCorrect = false;
   }
   if(_nNonTrainDataInputUnits != _nInputUnits){
@@ -1048,9 +776,7 @@ void nnet::flowDataThroughNetwork(std::vector<std::vector<double> > dataflowStag
   return;
 }
 
-
-
-void nnet::backProp(size_t nBatchIndicator,
+bool nnet::backProp(size_t nBatchIndicator,
                     double wgtLearnRate,
                     double biasLearnRate,
                     size_t nEpoch,
@@ -1060,6 +786,7 @@ void nnet::backProp(size_t nBatchIndicator,
                     size_t mom_decay_schedule,
                     double mom_final,
                     bool doTestCost){
+  bool allOk = true;
   size_t nInputs, nOutputs, iDataStart, iDataStop;
   
   size_t nBatchSize;
@@ -1089,11 +816,13 @@ void nnet::backProp(size_t nBatchIndicator,
     }
   }
   
-  switch (_outputType){
-    case nnet::LIN_OUT_TYPE:
-      // do nothing
-      break;
-    case  nnet::SMAX_OUT_TYPE:
+//  switch (_outputType){
+//    case nnet::LIN_OUT_TYPE:
+//      // do nothing
+//      
+//      
+//      break;
+//    case  nnet::SMAX_OUT_TYPE:
       //http://eli.thegreenplace.net/2016/the-softmax-function-and-its-derivative/
       //http://neuralnetworksanddeeplearning.com/chap3.html#softmax
       size_t nOutputOutputs;
@@ -1187,7 +916,11 @@ void nnet::backProp(size_t nBatchIndicator,
             std::fill(hiddenBiasesUpdate[iWgtCount].begin(), hiddenBiasesUpdate[iWgtCount].end(), 0.0);
           }
           // Starting with the output layer what is the output size and input size
-          nInputs = _hiddenLayerSizes[_hiddenLayerSizes.size()-1];
+          if(_hiddenLayerSizes.size() > 0){
+            nInputs = _hiddenLayerSizes[_hiddenLayerSizes.size()-1];
+          }else{
+            nInputs = _nInputUnits;
+          }
           nOutputs = _nOutputUnits;
 
           for(size_t iDataIndex = iDataStart; iDataIndex < iDataStop; iDataIndex++){
@@ -1197,16 +930,22 @@ void nnet::backProp(size_t nBatchIndicator,
             }else{
               iDataInBatch = iDataIndex;
             }
-            // Softmax with cross entrophy has a simple derviative form for the weights on the input to the output units
-            for(int iInput = 0; iInput < _hiddenLayerSizes[_hiddenLayerSizes.size()-1]; ++iInput){
-              for(int iOutput = 0; iOutput < nOutputs; ++iOutput){
-                outputWeightsUpdate[(iInput*nOutputs)+iOutput] += (*inData)[(iDataInBatch*nInputs)+iInput] * (_trainGeneratedLabels[(iDataInBatch*nOutputs)+iOutput]-_trainDataLabels[(iDataInBatch*nOutputs)+iOutput]);
-              }
+            switch (_outputType){
+              case  nnet::LIN_OUT_TYPE:
+              case  nnet::SMAX_OUT_TYPE:
+                // Softmax with cross entrophy has a simple derviative form for the weights on the input to the output units
+                for(int iInput = 0; iInput < nInputs; ++iInput){
+                  for(int iOutput = 0; iOutput < nOutputs; ++iOutput){
+                    outputWeightsUpdate[(iInput*nOutputs)+iOutput] += (1.0/nInputs)*(*inData)[(iDataInBatch*nInputs)+iInput] * (_trainGeneratedLabels[(iDataInBatch*nOutputs)+iOutput]-_trainDataLabels[(iDataInBatch*nOutputs)+iOutput]);
+                  }
+                }
+                // Bias units have a 1 for the input weights of the unit, otherwise same as above
+                for(int iBias = 0; iBias < nOutputs; ++iBias){
+                  outputBiasesUpdate[iBias] += (1.0/nInputs)*(_trainGeneratedLabels[(iDataInBatch*_nOutputUnits)+iBias]-_trainDataLabels[(iDataInBatch*_nOutputUnits)+iBias]);
+                }
+                break;
             }
-            // Bias units have a 1 for the input weights of the unit, otherwise same as above
-            for(int iBias = 0; iBias < nOutputs; ++iBias){
-              outputBiasesUpdate[iBias] += (_trainGeneratedLabels[(iDataInBatch*_nOutputUnits)+iBias]-_trainDataLabels[(iDataInBatch*_nOutputUnits)+iBias]);
-            }
+            
           }
           forwardWeightsUpdate = &outputWeightsUpdate;
           nOutputOutputs = nOutputs;
@@ -1231,22 +970,28 @@ void nnet::backProp(size_t nBatchIndicator,
               }else{
                 iDataInBatch = iDataIndex;
               }
-              // We need the derivative of the weight multiplication on the input; by the activation dervi;
-              // all chained with the derivatives of the weights on the output side of the units
-              for(int iInput = 0; iInput < nInputs; ++iInput){
-                for(int iOutput = 0; iOutput < nOutputs; ++iOutput){
-                  for(int iNext = 0; iNext < nOutputOutputs; iNext++){
-                    hiddenWeightsUpdate[iWgtMat][(iInput*nOutputs)+iOutput]  += (*inData)[(iDataInBatch*nInputs)+iInput]* _hiddenGradients[iWgtMat][iDataInBatch*nOutputs+iOutput]*(*forwardWeightsUpdate)[(iOutput*nOutputOutputs)+iNext];
+              switch (_outputType){
+                case  nnet::LIN_OUT_TYPE:
+                case  nnet::SMAX_OUT_TYPE:
+                  // We need the derivative of the weight multiplication on the input; by the activation dervi;
+                  // all chained with the derivatives of the weights on the output side of the units
+                  for(int iInput = 0; iInput < nInputs; ++iInput){
+                    for(int iOutput = 0; iOutput < nOutputs; ++iOutput){
+                      for(int iNext = 0; iNext < nOutputOutputs; iNext++){
+                        hiddenWeightsUpdate[iWgtMat][(iInput*nOutputs)+iOutput]  += (1.0/nInputs)*(*inData)[(iDataInBatch*nInputs)+iInput]* _hiddenGradients[iWgtMat][iDataInBatch*nOutputs+iOutput]*(*forwardWeightsUpdate)[(iOutput*nOutputOutputs)+iNext];
+                      }
+                    }
                   }
-                }
-              }
-              // Biases have 1 for the weight multiplicaiton on input, otherwise the same
-              for(int iInput = 0; iInput < 1; ++iInput){
-                for(int iOutput = 0; iOutput < nOutputs; iOutput++){
-                  for(int iNext = 0; iNext< nOutputOutputs; iNext++){
-                    hiddenBiasesUpdate[iWgtMat][iOutput] +=  _hiddenGradients[iWgtMat][iDataInBatch*nOutputs+iOutput]*(*forwardWeightsUpdate)[(iOutput*nOutputOutputs)+iNext];
+                  
+                  // Biases have 1 for the weight multiplicaiton on input, otherwise the same
+                  for(int iInput = 0; iInput < 1; ++iInput){
+                    for(int iOutput = 0; iOutput < nOutputs; iOutput++){
+                      for(int iNext = 0; iNext< nOutputOutputs; iNext++){
+                        hiddenBiasesUpdate[iWgtMat][iOutput] += (1.0/nInputs)*_hiddenGradients[iWgtMat][iDataInBatch*nOutputs+iOutput]*(*forwardWeightsUpdate)[(iOutput*nOutputOutputs)+iNext];
+                      }
+                    }
                   }
-                }
+                  break;
               }
             }
             
@@ -1300,27 +1045,324 @@ void nnet::backProp(size_t nBatchIndicator,
         
         //feedForwardTrainData();
         cost = getTrainDataCost();
-        _epochTrainCostUpdates.push_back(cost);
-        std::cout << std::endl << "Epoch " << iEpoch << "-- Cost " << cost << "-- Accuracy " << getTrainDataAccuracy() << "  ("  << getTrainDataAccuracy() * _nTrainDataRecords << ")" << std::endl;
-        
-        if(doTestCost){
-          feedForwardNonTrainData();
-          testCost = getNonTrainDataCost();
-          _epochTestCostUpdates.push_back(testCost);
-          std::cout << "Test Cost: " << testCost <<  std::endl;
+        if(std::isnan(cost)){
+          std::cout << "Nan cost so quitting!\n";
+          allOk = false;
+          break;
+        }else{
+          _epochTrainCostUpdates.push_back(cost);
+          switch (_outputType){
+            case  nnet::LIN_OUT_TYPE:
+              std::cout << std::endl << "Epoch " << iEpoch << "-- Cost " << cost << std::endl;
+              break;
+            case  nnet::SMAX_OUT_TYPE:
+              std::cout << std::endl << "Epoch " << iEpoch << "-- Cost " << cost << "-- Accuracy " << getTrainDataAccuracy() << "  ("  << getTrainDataAccuracy() * _nTrainDataRecords << ")" << std::endl;
+              break;
+          }
+          if(doTestCost){
+            feedForwardNonTrainData();
+            testCost = getNonTrainDataCost();
+            _epochTestCostUpdates.push_back(testCost);
+            std::cout << "Test Cost: " << testCost <<  std::endl;
+          }
+          if(_epochTrainCostUpdates.size()>2){
+            if((_epochTrainCostUpdates[_epochTrainCostUpdates.size()-1] > _epochTrainCostUpdates[_epochTrainCostUpdates.size()-2]) &&
+               (_epochTrainCostUpdates[_epochTrainCostUpdates.size()-2] > _epochTrainCostUpdates[_epochTrainCostUpdates.size()-3])){
+              std::cout << "Traing cost rose twice in a row so quitting!\n";
+              allOk = false;
+              break;
+              
+            }
+          }
+        }
+      }
+  //    break;
+  // }
+  //std::cout "Last feedforward\n";
+  if(allOk){
+    feedForwardTrainData();
+    cost = getTrainDataCost();
+    std::cout <<  " Cost went from " << initialCost << " to " <<  cost << std::endl;
+  }
+  return allOk;
+}
+
+bool nnet::loadTrainDataFromFile(char *filename, bool hasHeader, char delim){
+  bool allOk = true;
+  bool first = true;
+  int nRecords = 0;
+  size_t nDelims = 0;
+  double dataValue;
+  //std::vector<double> *indata_ptr = new std::vector<double>;
+  
+  _trainDataLabelsLoaded = false;
+  _trainDataLoaded = false;
+  
+  _nInputUnits = 0;
+  _nTrainDataRecords = 0;
+  
+  _trainDataNormType = nnet::DATA_NORM_NONE;
+  _trainDataPCA = false;
+  _trainLabelsGenerated = false;
+  _weightsInitialised = false;
+  
+  std::ifstream infile(filename, std::ios_base::in);
+  
+  if (!infile.is_open()){
+    allOk = false;
+  }else{
+    std::cout << "Reading in data from file " << filename << std::endl;
+    _trainDataFeedForwardValues.resize(1);
+    _trainDataFeedForwardValues[0].resize(0);
+    if(hasHeader){
+      std::string headerline;
+      std::getline(infile, headerline);
+      nDelims = std::count(headerline.begin(), headerline.end(), delim);
+      first = false;
+    }
+    // http://stackoverflow.com/questions/18818777/c-program-for-reading-an-unknown-size-csv-file-filled-only-with-floats-with
+    
+    for (std::string line; std::getline(infile, line); )
+    {
+      if(line.find_first_not_of(' ') == std::string::npos){
+        break;
+      }else{
+        nRecords++;
+        if(first){
+          nDelims = std::count(line.begin(), line.end(), delim);
+          first = false;
+        }else{
+          if(nDelims != std::count(line.begin(), line.end(), delim)){
+            std::cout << "Problem with line " << nRecords << "; it has " << std::count(line.begin(), line.end(), delim) << " delimiters, expected " << nDelims << std::endl;
+            allOk = false;
+          }
         }
         
+        std::replace(line.begin(), line.end(), delim, ' ');
+        std::istringstream in(line);
+        
+        
+        if(allOk){
+          std::vector<double> rowValues = std::vector<double>(std::istream_iterator<double>(in), std::istream_iterator<double>());
+          for (std::vector<double>::const_iterator it(rowValues.begin()), end(rowValues.end()); it != end; ++it) {
+            dataValue = *it;
+            _trainDataFeedForwardValues[0].push_back(dataValue);
+          }
+        }else{
+          break;
+        }
       }
-      break;
+    }
   }
-  //std::cout "Last feedforward\n";
-  feedForwardTrainData();
-  
-  cost = getTrainDataCost();
-  std::cout <<  " Cost went from " << initialCost << " to " <<  cost << std::endl;
+  if(allOk){
+    //_trainDataFeedForwardValues.push_back(*indata_ptr);
+    _trainDataLoaded = true;
+    _trainDataShuffled = false;
+    _nTrainDataRecords = nRecords;
+    _nInputUnits = nDelims + 1;
+    std::cout << "Read " << _trainDataFeedForwardValues[0].size() << " data of " << nRecords << " by " << nDelims + 1 << std::endl;
+  }
+  return allOk;
+};
 
-  return;
-}
+bool nnet::loadTrainDataLabelsFromFile(char *filename, bool hasHeader, char delim){
+  bool allOk = true;
+  bool first = true;
+  int nRecords = 0;
+  size_t nDelims = 0;
+  double dataValue;
+  
+  _trainDataLabelsLoaded = false;
+  _trainDataLabels.resize(0);
+  _nOutputUnits = 0;
+  
+  std::ifstream infile(filename, std::ios_base::in);
+  
+  if (!infile.is_open()){
+    allOk = false;
+  }else{
+    std::cout << "Reading in data from file " << filename << std::endl;
+    if(hasHeader){
+      std::string headerline;
+      std::getline(infile, headerline);
+      nDelims = std::count(headerline.begin(), headerline.end(), delim);
+      first = false;
+    }
+    // http://stackoverflow.com/questions/18818777/c-program-for-reading-an-unknown-size-csv-file-filled-only-with-floats-with
+    
+    for (std::string line; std::getline(infile, line); )
+    {
+      if(line.find_first_not_of(' ') == std::string::npos){
+        break;
+      }else{
+        nRecords++;
+        if(first){
+          nDelims = std::count(line.begin(), line.end(), delim);
+          first = false;
+        }else{
+          if(nDelims != std::count(line.begin(), line.end(), delim)){
+            std::cout << "Problem with line " << nRecords << "; it has " << std::count(line.begin(), line.end(), delim) << " delimiters, expected " << nDelims << std::endl;
+            allOk = false;
+          }
+        }
+        
+        std::replace(line.begin(), line.end(), delim, ' ');
+        std::istringstream in(line);
+        
+        if(allOk){
+          std::vector<double> rowValues = std::vector<double>(std::istream_iterator<double>(in), std::istream_iterator<double>());
+          for (std::vector<double>::const_iterator it(rowValues.begin()), end(rowValues.end()); it != end; ++it) {
+            dataValue = *it;
+            _trainDataLabels.push_back(dataValue);
+          }
+        }else{
+          break;
+        }
+      }
+    }
+  }
+  if(allOk){
+    _trainDataLabelsLoaded = true;
+    _nOutputUnits = nDelims + 1;
+    std::cout << "Read " << _trainDataLabels.size() << " class labels of " << nRecords << " by " << _nOutputUnits << std::endl;
+  }
+  return allOk;
+};
+
+bool nnet::loadNonTrainDataFromFile(char *filename, bool hasHeader, char delim){
+  bool allOk = true;
+  bool first = true;
+  int nRecords = 0;
+  size_t nDelims = 0;
+  double dataValue;
+  
+  _nonTrainDataLabelsLoaded = false;
+  _nonTrainDataLoaded = false;
+  
+  _nNonTrainDataRecords = 0;
+  _trainDataNormType = nnet::DATA_NORM_NONE;
+  _nonTrainDataPCA = false;
+  
+  std::ifstream infile(filename, std::ios_base::in);
+  
+  if (!infile.is_open()){
+    allOk = false;
+  }else{
+    std::cout << "Reading in data from file " << filename << std::endl;
+    _nonTrainDataFeedForwardValues.resize(1);
+    _nonTrainDataFeedForwardValues[0].resize(0);
+    if(hasHeader){
+      std::string headerline;
+      std::getline(infile, headerline);
+      nDelims = std::count(headerline.begin(), headerline.end(), delim);
+      first = false;
+    }
+    // http://stackoverflow.com/questions/18818777/c-program-for-reading-an-unknown-size-csv-file-filled-only-with-floats-with
+    
+    for (std::string line; std::getline(infile, line); )
+    {
+      if(line.find_first_not_of(' ') == std::string::npos){
+        break;
+      }else{
+        nRecords++;
+        if(first){
+          nDelims = std::count(line.begin(), line.end(), delim);
+          first = false;
+        }else{
+          if(nDelims != std::count(line.begin(), line.end(), delim)){
+            std::cout << "Problem with line " << nRecords << "; it has " << std::count(line.begin(), line.end(), delim) << " delimiters, expected " << nDelims << std::endl;
+            allOk = false;
+          }
+        }
+        
+        std::replace(line.begin(), line.end(), delim, ' ');
+        std::istringstream in(line);
+        
+        
+        if(allOk){
+          std::vector<double> rowValues = std::vector<double>(std::istream_iterator<double>(in), std::istream_iterator<double>());
+          for (std::vector<double>::const_iterator it(rowValues.begin()), end(rowValues.end()); it != end; ++it) {
+            dataValue = *it;
+            _nonTrainDataFeedForwardValues[0].push_back(dataValue);
+          }
+        }else{
+          break;
+        }
+      }
+    }
+  }
+  if(allOk){
+    //_testFeedForwardValues.push_back(*indata_ptr);
+    _nonTrainDataLoaded = true;
+    _nNonTrainDataRecords = nRecords;
+    _nNonTrainDataInputUnits = nDelims + 1;
+    std::cout << "Read " << _nonTrainDataFeedForwardValues[0].size() << " data of " << nRecords << " by " << nDelims + 1 << std::endl;
+  }
+  return allOk;
+};
+
+bool nnet::loadNonTrainDataLabelsFromFile(char *filename, bool hasHeader, char delim){
+  bool allOk = true;
+  bool first = true;
+  int nRecords = 0;
+  size_t nDelims = 0;
+  double dataValue;
+  
+  _nonTrainDataLabelsLoaded = false;
+  _nonTrainDataLabels.resize(0);
+  
+  std::ifstream infile(filename, std::ios_base::in);
+  
+  if (!infile.is_open()){
+    allOk = false;
+  }else{
+    std::cout << "Reading in data from file " << filename << std::endl;
+    if(hasHeader){
+      std::string headerline;
+      std::getline(infile, headerline);
+      nDelims = std::count(headerline.begin(), headerline.end(), delim);
+      first = false;
+    }
+    // http://stackoverflow.com/questions/18818777/c-program-for-reading-an-unknown-size-csv-file-filled-only-with-floats-with
+    
+    for (std::string line; std::getline(infile, line); )
+    {
+      if(line.find_first_not_of(' ') == std::string::npos){
+        break;
+      }else{
+        nRecords++;
+        if(first){
+          nDelims = std::count(line.begin(), line.end(), delim);
+          first = false;
+        }else{
+          if(nDelims != std::count(line.begin(), line.end(), delim)){
+            std::cout << "Problem with line " << nRecords << "; it has " << std::count(line.begin(), line.end(), delim) << " delimiters, expected " << nDelims << std::endl;
+            allOk = false;
+          }
+        }
+        
+        std::replace(line.begin(), line.end(), delim, ' ');
+        std::istringstream in(line);
+        
+        if(allOk){
+          std::vector<int> rowValues = std::vector<int>(std::istream_iterator<int>(in), std::istream_iterator<int>());
+          for (std::vector<int>::const_iterator it(rowValues.begin()), end(rowValues.end()); it != end; ++it) {
+            dataValue = *it;
+            _nonTrainDataLabels.push_back(dataValue);
+          }
+        }else{
+          break;
+        }
+      }
+    }
+  }
+  if(allOk){
+    _nonTrainDataLabelsLoaded = true;
+    _nNonTrainDataOutputUnits = nDelims + 1;
+    std::cout << "Read " << _nonTrainDataLabels.size() << " class labels of " << nRecords << " by " << _nOutputUnits << std::endl;
+  }
+  return allOk;
+};
 
 void nnet::writeWeightValues(){
   size_t nRows = 0, nCols = 0;
@@ -1384,7 +1426,6 @@ void nnet::writeEpochTestCostUpdates(){
   return;
 }
 
-
 void nnet::printUnitType(){
   switch (_activationType){
     case nnet::TANH_ACT_TYPE:
@@ -1421,13 +1462,28 @@ void nnet::printGeometry(){
   std::cout << "Output units: " << _nOutputUnits << std::endl;
 }
 
-void nnet::printLabels(){
+void nnet::printTrainLabels(){
   if(_trainDataLabelsLoaded){
     std::cout << "Printing Labels" << std::endl;
     for(int i = 0; i < _nTrainDataRecords; i++){
       std::cout << "Record " << i + 1 << ": ";
       for(int j = 0; j < _nOutputUnits; j++){
         std::cout << _trainDataLabels[(i*_nOutputUnits)+j] << " | ";
+      }
+      std::cout << std::endl;
+    }
+  }else{
+    std::cout << "No Labels Loaded" << std::endl;
+  }
+}
+
+void nnet::printNonTrainLabels(){
+  if(_nonTrainDataLabelsLoaded){
+    std::cout << "Printing Non Train Labels" << std::endl;
+    for(int i = 0; i < _nNonTrainDataRecords; i++){
+      std::cout << "Record " << i + 1 << ": ";
+      for(int j = 0; j < _nNonTrainDataOutputUnits; j++){
+        std::cout << _nonTrainDataLabels[(i*_nNonTrainDataOutputUnits)+j] << " | ";
       }
       std::cout << std::endl;
     }
