@@ -16,6 +16,7 @@ public:
     void getUniformVector(std::vector<double>& dataToFill);
     void getGaussianVector(std::vector<double>& dataToFill, double stdev);
     void getShuffled(std::vector<int>& indata);
+    void getBernoulliVector(std::vector<int>& dataToFill, double p);
   
 };
 

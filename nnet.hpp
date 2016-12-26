@@ -56,7 +56,7 @@ private:
   normDataType _trainDataNormType;
   normDataType _nonTrainDataNormType;
   
-  // Things to do with testdata
+  // Things to do with non- Train Data
   bool _nonTrainDataLabelsLoaded = false;
   bool _nonTrainDataLoaded = false;
   size_t _nNonTrainDataRecords = 0;
@@ -65,8 +65,6 @@ private:
   size_t _nNonTrainDataOutputUnits;
   std::vector<std::vector<double> > _nonTrainDataFeedForwardValues;
   std::vector<double> _nonTrainDataLabels;
-  
-  
   
   bool _nonTrainLabelsGenerated;
   std::vector<double> _nonTrainGeneratedLabels;
@@ -81,6 +79,24 @@ private:
   std::vector<double> _outputBiases;
   bool _weightsInitialised;
   
+  // Dropout during optimisation
+  bool _doTestCost;
+  bool _doDropout;
+  double _inputDropoutRate;
+  double _hiddenDropoutRate;
+  bool _doMomentum;
+  double _momMu;
+  double _momDecay;
+  size_t _momDecaySchedule;
+  double _momFinal;
+  std::vector<std::vector<int> > _hiddenWeightsDropout;
+  std::vector<std::vector<int> > _hiddenBiasesDropout;
+  std::vector<double> _outputWeightsDropout;
+  std::vector<double> _outputBiasesDropout;
+  
+  std::vector<double> _epochTrainCostUpdates;
+  std::vector<double> _epochTestCostUpdates;
+
   // Things to do with the output
   size_t _nOutputUnits;
   std::vector<double> _trainGeneratedLabels;
@@ -88,13 +104,22 @@ private:
   outputType _outputType;
   lossType _lossType;
  
+  
   // Private functions
   void activateUnits(std::vector<double>& values);
-  void activateUnitsAndCalcGradients(std::vector<double>& values, std::vector<double>& gradients);
+  void activateUnitsAndCalcGradients(std::vector<double>& values,
+                                     std::vector<double>& gradients,
+                                     double nesterovAdj = 0.0);
   void activateOutput(std::vector<double>& values);
   void flowDataThroughNetwork(std::vector<std::vector<double> > dataflowStages,
                               std::vector<double>& dataFlowMatrix,
-                              bool calcTrainGradients);
+                              bool calcTrainGradients,
+                              double nesterovAdj);
+  void flowDataThroughNetwork(std::vector<std::vector<double> > dataflowStages,
+                              std::vector<double>& dataFlowMatrix,
+                              bool calcTrainGradients,
+                              double nesterovAdj,
+                              std::vector<std::vector<int> >& dropouts);
   // Functions
 public:
   nnet();
@@ -125,30 +150,40 @@ public:
   void normTrainData(normDataType normType);
   void shuffleTrainData();
   void pcaTrainData(size_t dimensions);
-
+  
+ 
   // Preprocessing methods on Non Train Data
 
   void normNonTrainData(normDataType normType);
   void pcaNonTrainData();
-  
-  
-  // Weight fitting stuff
+
+  // Feed forward
+  void feedForwardTrainData(bool calcGradients,
+                            double nestorovAdj);
+  void feedForwardTrainData(bool calcGradients,
+                            double nestorovAdj,
+                            std::vector<std::vector<int> >& dropouts);
+
+  void feedForwardNonTrainData();
+
+  // Backpropagation stuff
+  void doDropout(bool doDropout);
+  void setDropoutRates(double inputDropout, double hiddenDropout);
+  void doTestCost(bool doTestCost);
+  void setMomentum(bool doMomentum,
+                   double momMu,
+                   double momDecay,
+                   size_t momDecaySchedule,
+                   double momFinal);
+
   void initialiseWeights(double stdev);
-  void feedForwardTrainData();
+  void setDropout(bool doDropout);
   bool backProp(size_t nBatchIndicator,
                 double wgtLearnRate,
                 double biasLearnRate,
-                size_t nEpoch,
-                bool doMomentum,
-                double mom_mu,
-                double mom_decay,
-                size_t mom_decay_schedule,
-                double mom_final,
-                bool doTestCost);
-  void feedForwardNonTrainData();
+                size_t nEpoch);
   
-  std::vector<double> _epochTrainCostUpdates;
-  std::vector<double> _epochTestCostUpdates;
+  
   
   //Informational queries
   bool dataLoaded();

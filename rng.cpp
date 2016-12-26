@@ -34,6 +34,13 @@ void rng::getGaussianVector(std::vector<double>& dataToFill, double stdev){
     return;
 }
 
+void rng::getBernoulliVector(std::vector<int>& dataToFill, double p){
+  for(std::vector<int>::iterator it = dataToFill.begin(); it != dataToFill.end(); ++it) {
+    *it = gsl_ran_bernoulli(_rng, p);
+  }
+  return;
+}
+
 void rng::getShuffled(std::vector<int>& indata){
   
   gsl_ran_shuffle (_rng, indata.data(), indata.size(), sizeof (int));
