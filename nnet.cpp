@@ -14,13 +14,14 @@
 
 
 #define BIAS_START 0.0
+#define ROW_MAJOR true
 #define MIN_DATA_RANGE 1e-4
 
 
 // http://cs231n.github.io/neural-networks-3/
 
 nnet::nnet(){
-  _outputDir = "/Users/Martin/Google Drive/Projects/NN/testdata/";
+  _outputDir = "~/";
   _trainDataLoaded = false;
   _trainDataLabelsLoaded = false;
   _trainLabelsGenerated = false;
@@ -54,6 +55,12 @@ nnet::nnet(){
 nnet::~nnet(){
   delete _rng;
 };
+
+void nnet::setOutputFolder(char *filename){
+  _outputDir = filename;
+  return;
+}
+
 
 void nnet::setHiddenLayerSizes(const std::vector<int>& layerSizes){
   _hiddenLayerSizes.resize(0);
@@ -105,49 +112,55 @@ void nnet::setMomentum(bool doMomentum,
 }
 
 
-void nnet::initialiseWeights(double stdev){
-  size_t nTotalWeights = 0;
+void nnet::initialiseWeights(initialiseType initialtype, double param1){
   size_t nCurrentInputWidth = _nInputUnits;
   
   // std::cout << "Initialising weights" << std::endl;
   _hiddenWeights.resize(0);
   _hiddenBiases.resize(0);
   
-  if(_hiddenLayerSizes.size() > 0){
-    nTotalWeights = 0;
-    for(int i = 0 ; i < _hiddenLayerSizes.size(); i++) {
-      nTotalWeights += nCurrentInputWidth * _hiddenLayerSizes[i];
-      _hiddenWeights.resize(i+1);
-      _hiddenWeights[i].resize(nCurrentInputWidth*_hiddenLayerSizes[i]);
-      _hiddenBiases.resize(i+1);
-      _hiddenBiases[i].resize(_hiddenLayerSizes[i], BIAS_START);
+  switch (initialtype) {
+    case nnet::INIT_CONST_TYPE:
+      if(_hiddenLayerSizes.size() > 0){
+        for(int i = 0 ; i < _hiddenLayerSizes.size(); i++) {
+          _hiddenWeights.resize(i+1);
+          _hiddenWeights[i].resize(nCurrentInputWidth*_hiddenLayerSizes[i], param1);
+          _hiddenBiases.resize(i+1);
+          _hiddenBiases[i].resize(_hiddenLayerSizes[i], BIAS_START);
+          nCurrentInputWidth = _hiddenLayerSizes[i];
+        }
+      }
       
-      _rng->getGaussianVector(_hiddenWeights[i], stdev);
-      nCurrentInputWidth = _hiddenLayerSizes[i];
-    }
+      if(_nOutputUnits > 0){
+        _outputWeights.resize(nCurrentInputWidth * _nOutputUnits, 1);
+        _outputBiases.resize(_nOutputUnits, BIAS_START);
+      }
+    break;
+    case nnet::INIT_GAUSS_TYPE:
+      if(_hiddenLayerSizes.size() > 0){
+        for(int i = 0 ; i < _hiddenLayerSizes.size(); i++) {
+          _hiddenWeights.resize(i+1);
+          _hiddenWeights[i].resize(nCurrentInputWidth*_hiddenLayerSizes[i]);
+          _hiddenBiases.resize(i+1);
+          _hiddenBiases[i].resize(_hiddenLayerSizes[i], BIAS_START);
+          _rng->getGaussianVector(_hiddenWeights[i], param1);
+          nCurrentInputWidth = _hiddenLayerSizes[i];
+        }
+      }
+      
+      if(_nOutputUnits > 0){
+        _outputWeights.resize(nCurrentInputWidth * _nOutputUnits, 1);
+        _outputBiases.resize(_nOutputUnits, BIAS_START);
+        _rng->getGaussianVector(_outputWeights, param1);
+      }
+      break;
+    default:
+      std::cout << "Don't know this type for weight initialisation!\n";
+      break;
   }
   
-  if(_nOutputUnits > 0){
-    nTotalWeights += nCurrentInputWidth * _nOutputUnits;
-    _outputWeights.resize(nCurrentInputWidth * _nOutputUnits, 1);
-    _outputBiases.resize(_nOutputUnits, BIAS_START);
-    _rng->getGaussianVector(_outputWeights, stdev);
-    nCurrentInputWidth = _nOutputUnits;
-  }
-  // std::cout << "Total Number of Weights: " << nTotalWeights << std::endl;
-//  if(_hiddenLayerSizes.size() > 0){
-//    std::cout << "Hidden Layer Weights: ";
-//    for(std::vector<std::vector<double> >::const_iterator it = _hiddenWeights.begin(); it != _hiddenWeights.end(); ++it)	{
-//      std::cout << it->size() << " ";
-//    }
-//    std::cout << std::endl;
-//  }
-//  
-//  if(_nOutputUnits > 0){
-//    std::cout << "Output Layer Weights: ";
-//    std::cout << _outputWeights.size();
-//    std::cout << std::endl;
-//  }
+  
+  
   _weightsInitialised = true;
 }
 
@@ -159,21 +172,21 @@ void nnet::normTrainData(normDataType normType){
     switch (normType) {
       case nnet::DATA_STAN_NORM:
         // Welfords Method for standard deviation
-        for(int i = 0; i < _nInputUnits; i++){
-          _trainDataNormParam1[i] =  _trainDataFeedForwardValues[0][i];
-          for(int j = 1; j < _nTrainDataRecords; j++){
-            delta = _trainDataFeedForwardValues[0][(j*_nInputUnits)+i] - _trainDataNormParam1[i];
-            _trainDataNormParam1[i] += delta/(j+1);
-            _trainDataNormParam2[i] += delta*(_trainDataFeedForwardValues[0][(j*_nInputUnits)+i]-_trainDataNormParam1[i]);
+        for(int iCol = 0; iCol < _nInputUnits; iCol++){
+          _trainDataNormParam1[iCol] =  _trainDataFeedForwardValues[0][iCol * _nTrainDataRecords];
+          for(int iRow = 1; iRow < _nTrainDataRecords; iRow++){
+            delta = _trainDataFeedForwardValues[0][(iCol*_nTrainDataRecords) + iRow] - _trainDataNormParam1[iCol];
+            _trainDataNormParam1[iCol] += delta/(iRow+1);
+            _trainDataNormParam2[iCol] += delta*(_trainDataFeedForwardValues[0][(iCol*_nTrainDataRecords) + iRow]-_trainDataNormParam1[iCol]);
           }
-          _trainDataNormParam2[i] = sqrt(_trainDataNormParam2[i]/(_nTrainDataRecords-1));
+          _trainDataNormParam2[iCol] = sqrt(_trainDataNormParam2[iCol]/(_nTrainDataRecords-1));
         }
         
-        for(int i = 0; i < _nInputUnits; i++){
-          for(int j = 0; j < _nTrainDataRecords; j++){
-            _trainDataFeedForwardValues[0][(j*_nInputUnits)+i] -= _trainDataNormParam1[i];
-            if(_trainDataNormParam2[i] > MIN_DATA_RANGE){
-              _trainDataFeedForwardValues[0][(j*_nInputUnits)+i] /= _trainDataNormParam2[i];
+        for(int iCol = 0; iCol < _nInputUnits; iCol++){
+          for(int iRow = 0; iRow < _nTrainDataRecords; iRow++){
+            _trainDataFeedForwardValues[0][(iCol*_nTrainDataRecords) + iRow] -= _trainDataNormParam1[iCol];
+            if(_trainDataNormParam2[iCol] > MIN_DATA_RANGE){
+              _trainDataFeedForwardValues[0][(iCol*_nTrainDataRecords) + iRow] /= _trainDataNormParam2[iCol];
             }
           }
         }
@@ -182,20 +195,20 @@ void nnet::normTrainData(normDataType normType){
 
         break;
       case nnet::DATA_RANGE_BOUND:
-        for(int i = 0; i < _nInputUnits; i++){
-          _trainDataNormParam1[i] = _trainDataFeedForwardValues[0][i];
-          _trainDataNormParam2[i] = _trainDataFeedForwardValues[0][i];
+        for(int iCol = 0; iCol < _nInputUnits; iCol++){
+          _trainDataNormParam1[iCol] = _trainDataFeedForwardValues[0][iCol];
+          _trainDataNormParam2[iCol] = _trainDataFeedForwardValues[0][iCol];
 
-          for(int j = 1; j < _nTrainDataRecords; j++){
-            _trainDataNormParam1[i] = std::min(_trainDataFeedForwardValues[0][(j*_nInputUnits)+i],_trainDataNormParam1[i]);
-            _trainDataNormParam2[i] = std::max(_trainDataFeedForwardValues[0][(j*_nInputUnits)+i],_trainDataNormParam2[i]);
+          for(int iRow = 1; iRow < _nTrainDataRecords; iRow++){
+            _trainDataNormParam1[iCol] = std::min(_trainDataFeedForwardValues[0][(iCol*_nTrainDataRecords) + iRow],_trainDataNormParam1[iCol]);
+            _trainDataNormParam2[iCol] = std::max(_trainDataFeedForwardValues[0][(iCol*_nTrainDataRecords) + iRow],_trainDataNormParam2[iCol]);
           }
         }
-        for(int iInputUnit = 0; iInputUnit < _nInputUnits; iInputUnit++){
-          for(int iIndataRecord = 0; iIndataRecord < _nTrainDataRecords; iIndataRecord++){
-            _trainDataFeedForwardValues[0][(iIndataRecord*_nInputUnits)+iInputUnit] -= _trainDataNormParam1[iInputUnit] + ((_trainDataNormParam2[iInputUnit]- _trainDataNormParam1[iInputUnit])/2);
-            if((_trainDataNormParam2[iInputUnit]- _trainDataNormParam1[iInputUnit]) > MIN_DATA_RANGE){
-            _trainDataFeedForwardValues[0][(iIndataRecord*_nInputUnits)+iInputUnit] /= (_trainDataNormParam2[iInputUnit]- _trainDataNormParam1[iInputUnit]);
+        for(int iCol = 0; iCol < _nInputUnits; iCol++){
+          for(int iRow = 0; iRow < _nTrainDataRecords; iRow++){
+            _trainDataFeedForwardValues[0][(iCol*_nTrainDataRecords) + iRow] -= _trainDataNormParam1[iCol] + ((_trainDataNormParam2[iCol]- _trainDataNormParam1[iCol])/2);
+            if((_trainDataNormParam2[iCol]- _trainDataNormParam1[iCol]) > MIN_DATA_RANGE){
+            _trainDataFeedForwardValues[0][(iCol*_nTrainDataRecords) + iRow] /= (_trainDataNormParam2[iCol]- _trainDataNormParam1[iCol]);
             }
           }
         }
@@ -241,22 +254,22 @@ void nnet::normNonTrainData(normDataType normType){
   if(canDo){
     switch (normType) {
       case nnet::DATA_STAN_NORM:
-        for(int i = 0; i < _nNonTrainDataInputUnits; i++){
-          for(int j = 0; j < _nNonTrainDataRecords; j++){
-            _nonTrainDataFeedForwardValues[0][(j*_nNonTrainDataInputUnits)+i] -= _trainDataNormParam1[i];
-            if(_trainDataNormParam2[i] > MIN_DATA_RANGE){
-              _nonTrainDataFeedForwardValues[0][(j*_nNonTrainDataInputUnits)+i] /= _trainDataNormParam2[i];
+        for(int iCol = 0; iCol < _nNonTrainDataInputUnits; iCol++){
+          for(int iRow = 0; iRow < _nNonTrainDataRecords; iRow++){
+            _nonTrainDataFeedForwardValues[0][(iCol*_nNonTrainDataRecords)+iRow] -= _trainDataNormParam1[iCol];
+            if(_trainDataNormParam2[iCol] > MIN_DATA_RANGE){
+              _nonTrainDataFeedForwardValues[0][(iCol*_nNonTrainDataRecords)+iRow] /= _trainDataNormParam2[iCol];
             }
           }
         }
         _nonTrainDataNormType = nnet::DATA_STAN_NORM;
         break;
       case nnet::DATA_RANGE_BOUND:
-        for(int iInputUnit = 0; iInputUnit < _nNonTrainDataInputUnits; iInputUnit++){
-          for(int iIndataRecord = 0; iIndataRecord < _nNonTrainDataRecords; iIndataRecord++){
-            _nonTrainDataFeedForwardValues[0][(iIndataRecord*_nNonTrainDataInputUnits)+iInputUnit] -= _trainDataNormParam1[iInputUnit] + ((_trainDataNormParam2[iInputUnit]- _trainDataNormParam1[iInputUnit])/2);
-            if((_trainDataNormParam2[iInputUnit]- _trainDataNormParam1[iInputUnit]) > MIN_DATA_RANGE){
-              _nonTrainDataFeedForwardValues[0][(iIndataRecord*_nNonTrainDataInputUnits)+iInputUnit] /= (_trainDataNormParam2[iInputUnit]- _trainDataNormParam1[iInputUnit]);
+        for(int iCol = 0; iCol < _nNonTrainDataInputUnits; iCol++){
+          for(int iRow = 0; iRow < _nNonTrainDataRecords; iRow++){
+            _nonTrainDataFeedForwardValues[0][(iCol*_nNonTrainDataRecords)+iRow] -= _trainDataNormParam1[iCol] + ((_trainDataNormParam2[iCol]- _trainDataNormParam1[iCol])/2);
+            if((_trainDataNormParam2[iCol]- _trainDataNormParam1[iCol]) > MIN_DATA_RANGE){
+              _nonTrainDataFeedForwardValues[0][(iCol*_nNonTrainDataRecords)+iRow] /= (_trainDataNormParam2[iCol]- _trainDataNormParam1[iCol]);
             }
           }
         }
@@ -273,48 +286,61 @@ void nnet::normNonTrainData(normDataType normType){
   
 }
 
+
+// We are not physically shuffling the data, but creating an index of ordering
+// for use in batch optimisation
 void nnet::shuffleTrainData(){
   std::vector<std::vector<int> > indataShuffle;
   std::vector<int> iClassShuffle;
   indataShuffle.resize(_nOutputUnits);
   iClassShuffle.resize(_nOutputUnits);
-  
-  for(int iLabelClass = 0; iLabelClass < _nOutputUnits; iLabelClass++){
-    indataShuffle[iLabelClass].resize(0);
-    iClassShuffle[iLabelClass] = iLabelClass;
-  }
   if(_trainDataLoaded){
-    for(int iLabel = 0; iLabel < _nTrainDataRecords; iLabel++ ){
+    if(_nOutputUnits > 1){
       for(int iLabelClass = 0; iLabelClass < _nOutputUnits; iLabelClass++){
-        if(_trainDataLabels[iLabel * _nOutputUnits + iLabelClass] > 0.8){
-          indataShuffle[iLabelClass].push_back(iLabel);
-          break;
+        indataShuffle[iLabelClass].resize(0);
+        iClassShuffle[iLabelClass] = iLabelClass;
+      }
+      for(int iLabel = 0; iLabel < _nTrainDataRecords; iLabel++ ){
+        for(int iLabelClass = 0; iLabelClass < _nOutputUnits; iLabelClass++){
+          if(_trainDataLabels[iLabelClass * _nTrainDataRecords +  iLabel ] > 0.8){
+            indataShuffle[iLabelClass].push_back(iLabel);
+            break;
+          }
         }
       }
-    }
-    for(int iLabelClass = 0; iLabelClass < _nOutputUnits; iLabelClass++){
-      if(indataShuffle[iLabelClass].size() > 1){
-        _rng->getShuffled(indataShuffle[iLabelClass]);
-    }
-  }
-    if(_nOutputUnits > 1){
-      _rng->getShuffled(iClassShuffle);
-    }
-  size_t maxClass = indataShuffle[0].size();
-  for(int iLabelClass = 0; iLabelClass < _nOutputUnits; iLabelClass++){
-    maxClass = indataShuffle[0].size() > maxClass ? indataShuffle[0].size() : maxClass;
-  }
-    
-  _trainDataShuffleIndex.resize(0);
-  for(int iLabel = 0; iLabel < maxClass; iLabel++ ){
-    for(int iLabelClass = 0; iLabelClass < _nOutputUnits; iLabelClass++){
-      if(iLabel < indataShuffle[iClassShuffle[iLabelClass]].size()){
-        _trainDataShuffleIndex.push_back(indataShuffle[iClassShuffle[iLabelClass]][iLabel]);
+      for(int iLabelClass = 0; iLabelClass < _nOutputUnits; iLabelClass++){
+        if(indataShuffle[iLabelClass].size() > 1){
+          _rng->getShuffled(indataShuffle[iLabelClass]);
+        }
       }
+      if(_nOutputUnits > 1){
+        _rng->getShuffled(iClassShuffle);
+      }
+      size_t maxClass = indataShuffle[0].size();
+      for(int iLabelClass = 0; iLabelClass < _nOutputUnits; iLabelClass++){
+        maxClass = indataShuffle[0].size() > maxClass ? indataShuffle[0].size() : maxClass;
+      }
+      
+      _trainDataShuffleIndex.resize(0);
+      for(int iLabel = 0; iLabel < maxClass; iLabel++ ){
+        for(int iLabelClass = 0; iLabelClass < _nOutputUnits; iLabelClass++){
+          if(iLabel < indataShuffle[iClassShuffle[iLabelClass]].size()){
+            _trainDataShuffleIndex.push_back(indataShuffle[iClassShuffle[iLabelClass]][iLabel]);
+          }
+        }
+      }
+    }else{
+      _trainDataShuffleIndex.resize(_nTrainDataRecords);
+      for(int iRecord = 0; iRecord < _nTrainDataRecords; iRecord++){
+        _trainDataShuffleIndex[iRecord] = iRecord;
+      }
+      _rng->getShuffled(_trainDataShuffleIndex);
     }
+    _trainDataShuffled = true;
+  }else{
+    std::cout << "Shuffling but no train data loaded!\n";
   }
-  _trainDataShuffled = true;
-  }
+  return;
 }
 
 void nnet::pcaTrainData(size_t nRetainedDimensions){
@@ -415,28 +441,29 @@ void nnet::activateOutput(std::vector<double>& values){
       double denominator = 0.0;
       double max = 0.0;
       
-      std::vector<double> numerator(_nTrainDataRecords);
-      for(int i = 0; i < _nTrainDataRecords; i++){
-        for(int j = 0; j < _nOutputUnits; j++){
-          if(j == 0){
-            max = values[(i*_nOutputUnits)+j];
+      std::vector<double> numerator(_nOutputUnits);
+      for(int iRow = 0; iRow < _nTrainDataRecords; iRow++){
+        for(int iCol = 0; iCol < _nOutputUnits; iCol++){
+          if(iCol == 0){
+            max = values[(iCol*_nTrainDataRecords)+iRow];
           }else{
-            if(values[(i*_nOutputUnits)+j]>max){
-              max = values[(i*_nOutputUnits)+j];
+            if(values[(iCol*_nTrainDataRecords)+iRow]>max){
+              max = values[(iCol*_nTrainDataRecords)+iRow];
             }
           }
         }
-        for(int j = 0; j < _nOutputUnits; j++){
-          values[(i*_nOutputUnits)+j] -= max;
+        // An adjustment to avoid overflow
+        for(int iCol = 0; iCol < _nOutputUnits; iCol++){
+          values[(iCol*_nTrainDataRecords)+iRow] -= max;
         }
         
         denominator = 0.0;
-        for(int j = 0; j < _nOutputUnits; j++){
-          numerator[j] = exp(values[(i*_nOutputUnits)+j]);
-          denominator  += numerator[j];
+        for(int iCol = 0; iCol < _nOutputUnits; iCol++){
+          numerator[iCol] = exp(values[(iCol*_nTrainDataRecords)+iRow]);
+          denominator  += numerator[iCol];
         }
-        for(int j = 0; j < _nOutputUnits; j++){
-          values[(i*_nOutputUnits)+j] = numerator[j]/denominator;
+        for(int iCol = 0; iCol < _nOutputUnits; iCol++){
+          values[(iCol*_nTrainDataRecords)+iRow] = numerator[iCol]/denominator;
         }
       }
       break;
@@ -448,24 +475,29 @@ bool nnet::dataLoaded(){
   return _trainDataLoaded;
 }
 
+
+size_t nnet::getNTrainData(){
+  return _nTrainDataRecords;
+}
+
 double nnet::getTrainDataCost(){
   double cost = 0.0;
   switch (_lossType){
     case nnet::MSE_LOSS_TYPE:
       cost = 0.0;
-      for(int iData = 0; iData < _nTrainDataRecords; ++iData){
-        for(int iUnit = 0; iUnit < _nOutputUnits; ++iUnit){
-          cost += pow(_trainGeneratedLabels[(iData*_nOutputUnits)+iUnit] - _trainDataLabels[(iData*_nOutputUnits)+iUnit],2.0)/_nTrainDataRecords;
+      for(int iUnit = 0; iUnit < _nOutputUnits; ++iUnit){
+        for(int iRecord = 0; iRecord < _nTrainDataRecords; ++iRecord){
+          cost += pow(_trainGeneratedLabels[(iUnit*_nTrainDataRecords)+iRecord] - _trainDataLabels[(iUnit*_nTrainDataRecords)+iRecord],2.0)/_nTrainDataRecords;
         }
       }
 
       break;
     case  nnet::CROSS_ENT_TYPE:
       cost = 0.0;
-      for(int iData = 0; iData < _nTrainDataRecords; ++iData){
+      for(int iRecord = 0; iRecord < _nTrainDataRecords; ++iRecord){
         for(int iUnit = 0; iUnit < _nOutputUnits; ++iUnit){
-          if(_trainDataLabels[(iData*_nOutputUnits)+iUnit] > 0.5){
-            cost -= log( _trainGeneratedLabels[(iData*_nOutputUnits)+iUnit]);
+          if(_trainDataLabels[(iUnit*_nTrainDataRecords)+iRecord] > 0.5){
+            cost -= log( _trainGeneratedLabels[(iUnit*_nTrainDataRecords)+iRecord]);
           }
         }
       }
@@ -477,19 +509,20 @@ double nnet::getTrainDataAccuracy(){
   double accuracy = 0.0;
   double maxProb = 0.0;
   bool correct = false;
-  for(int iData = 0; iData < _nTrainDataRecords; ++iData){
-    for(int iOutput = 0; iOutput < _nOutputUnits; ++iOutput){
-      if(iOutput == 0){
-        maxProb = _trainGeneratedLabels[(iData*_nOutputUnits)+iOutput];
-        if(_trainDataLabels[(iData*_nOutputUnits)+iOutput] > 0.5){
+  for(int iRecord = 0; iRecord < _nTrainDataRecords; ++iRecord){
+    for(int iUnit = 0; iUnit < _nOutputUnits; ++iUnit){
+      if(iUnit == 0){
+        maxProb = _trainGeneratedLabels[(iUnit*_nTrainDataRecords)+iRecord];
+        if(_trainDataLabels[(iUnit*_nTrainDataRecords)+iRecord] > 0.5){
           correct = true;
         }else{
           correct = false;
         }
       }else{
-        if(_trainGeneratedLabels[(iData*_nOutputUnits)+iOutput] > maxProb){
-          maxProb = _trainGeneratedLabels[(iData*_nOutputUnits)+iOutput];
-          if(_trainDataLabels[(iData*_nOutputUnits)+iOutput] > 0.5){
+        if(_trainGeneratedLabels[(iUnit*_nTrainDataRecords)+iRecord] > maxProb){
+          maxProb = _trainGeneratedLabels[(iUnit*_nTrainDataRecords)+iRecord];
+          // These should be 0 or 1, but using a condition on 0.5
+          if(_trainDataLabels[(iUnit*_nTrainDataRecords)+iRecord] > 0.5){
             correct = true;
           }else{
             correct = false;
@@ -519,19 +552,19 @@ double nnet::getNonTrainDataCost(){
   switch (_lossType){
     case nnet::MSE_LOSS_TYPE:
       cost = 0.0;
-      for(int iData = 0; iData < _nTrainDataRecords; ++iData){
+      for(int iRecord = 0; iRecord < _nTrainDataRecords; ++iRecord){
         for(int iUnit = 0; iUnit < _nOutputUnits; ++iUnit){
-          cost += pow(_trainGeneratedLabels[(iData*_nOutputUnits)+iUnit] - _trainDataLabels[(iData*_nOutputUnits)+iUnit],2.0)/_nTrainDataRecords;
+          cost += pow(_trainGeneratedLabels[(iUnit*_nTrainDataRecords)+iRecord] - _trainDataLabels[(iUnit*_nTrainDataRecords)+iRecord],2.0)/_nTrainDataRecords;
         }
       }
       
       break;
     case  nnet::CROSS_ENT_TYPE:
       cost = 0.0;
-      for(int iData = 0; iData < _nNonTrainDataRecords; ++iData){
+      for(int iRecord = 0; iRecord < _nNonTrainDataRecords; ++iRecord){
         for(int iUnit = 0; iUnit < _nOutputUnits; ++iUnit){
-          if(_nonTrainDataLabels[(iData*_nOutputUnits)+iUnit] > 0.5){
-            cost -= log( _nonTrainGeneratedLabels[(iData*_nOutputUnits)+iUnit]);
+          if(_nonTrainDataLabels[(iUnit*_nTrainDataRecords)+iRecord] > 0.5){
+            cost -= log( _nonTrainGeneratedLabels[(iUnit*_nTrainDataRecords)+iRecord]);
           }
         }
       }
@@ -543,19 +576,19 @@ double nnet::getNonTrainDataAccuracy(){
   double accuracy = 0.0;
   double maxProb = 0.0;
   bool correct = false;
-  for(int iData = 0; iData < _nNonTrainDataRecords; ++iData){
-    for(int iOutput = 0; iOutput < _nOutputUnits; ++iOutput){
-      if(iOutput == 0){
-        maxProb = _nonTrainGeneratedLabels[(iData*_nOutputUnits)+iOutput];
-        if(_nonTrainDataLabels[(iData*_nOutputUnits)+iOutput] > 0.5){
+  for(int iRecord = 0; iRecord < _nNonTrainDataRecords; ++iRecord){
+    for(int iUnit = 0; iUnit < _nOutputUnits; ++iUnit){
+      if(iUnit == 0){
+        maxProb = _nonTrainGeneratedLabels[(iUnit*_nTrainDataRecords)+iRecord];
+        if(_nonTrainDataLabels[(iUnit*_nTrainDataRecords)+iRecord] > 0.5){
           correct = true;
         }else{
           correct = false;
         }
       }else{
-        if(_nonTrainGeneratedLabels[(iData*_nOutputUnits)+iOutput] > maxProb){
-          maxProb = _nonTrainGeneratedLabels[(iData*_nOutputUnits)+iOutput];
-          if(_nonTrainDataLabels[(iData*_nOutputUnits)+iOutput] > 0.5){
+        if(_nonTrainGeneratedLabels[(iUnit*_nTrainDataRecords)+iRecord] > maxProb){
+          maxProb = _nonTrainGeneratedLabels[(iUnit*_nTrainDataRecords)+iRecord];
+          if(_nonTrainDataLabels[(iUnit*_nTrainDataRecords)+iRecord] > 0.5){
             correct = true;
           }else{
             correct = false;
@@ -809,7 +842,7 @@ void nnet::feedForwardNonTrainData(){
   return;
 }
 
-void nnet::flowDataThroughNetwork(std::vector<std::vector<double> > dataflowStages,
+void nnet::flowDataThroughNetwork(std::vector<std::vector<double> >& dataflowStages,
                                   std::vector<double>& dataflowMatrix,
                                   bool calcTrainGradients,
                                   double nesterovAdj){
@@ -828,9 +861,9 @@ void nnet::flowDataThroughNetwork(std::vector<std::vector<double> > dataflowStag
     nWeightsCols =  _hiddenLayerSizes[iLayer];
     
     dataflowMatrix.assign(nInputRows*_hiddenBiases[iLayer].size(),0.0);
-    for(int i = 0; i < nInputRows; ++i){
-      for(int j = 0; j <  _hiddenBiases[iLayer].size(); j++){
-        dataflowMatrix[(i*_hiddenBiases[iLayer].size())+j] = _hiddenBiases[iLayer][j];
+    for(int iRow = 0; iRow < nInputRows; ++iRow){
+      for(int iCol = 0; iCol <  _hiddenBiases[iLayer].size(); iCol++){
+        dataflowMatrix[(iCol*nInputRows)+iRow] = _hiddenBiases[iLayer][iCol];
       }
     }
     
@@ -860,9 +893,9 @@ void nnet::flowDataThroughNetwork(std::vector<std::vector<double> > dataflowStag
   dataflowMatrix.resize(0);
   dataflowMatrix = _outputBiases;
   dataflowMatrix.resize(nInputRows*_outputBiases.size());
-  for(int i = 0; i < nInputRows; ++i){
-    for(int j = 0; j <  _outputBiases.size(); j++){
-      dataflowMatrix[(i*_outputBiases.size()) + j] = _outputBiases[j];
+  for(int iRow = 0; iRow < nInputRows; ++iRow){
+    for(int iCol = 0; iCol <  _outputBiases.size(); iCol++){
+      dataflowMatrix[(iCol*nInputRows) + iRow] = _outputBiases[iCol];
     }
   }
   
@@ -880,7 +913,7 @@ void nnet::flowDataThroughNetwork(std::vector<std::vector<double> > dataflowStag
 
 
 
-void nnet::flowDataThroughNetwork(std::vector<std::vector<double> > dataflowStages,
+void nnet::flowDataThroughNetwork(std::vector<std::vector<double> >& dataflowStages,
                                   std::vector<double>& dataflowMatrix,
                                   bool calcTrainGradients,
                                   double nesterovAdj,
@@ -1109,7 +1142,7 @@ bool nnet::backProp(size_t nBatchIndicator,
       nOutputs = _nOutputUnits;
       
       for(size_t iDataIndex = iDataStart; iDataIndex < iDataStop; iDataIndex++){
-        size_t iDataInBatch;
+        size_t iDataInBatch = 0;
         if(_trainDataShuffled){
           iDataInBatch = _trainDataShuffleIndex[iDataIndex];
         }else{
@@ -1123,27 +1156,25 @@ bool nnet::backProp(size_t nBatchIndicator,
               for(int iInput = 0; iInput < nInputs; ++iInput){
                 if(dropoutMask[iDropoutLayerIndex][iInput] == 0){
                   for(int iOutput = 0; iOutput < nOutputs; ++iOutput){
-                    outputWeightsUpdate[(iInput*nOutputs)+iOutput] += (1.0/nInputs)*(*inData)[(iDataInBatch*nInputs)+iInput] * (_trainGeneratedLabels[(iDataInBatch*nOutputs)+iOutput]-_trainDataLabels[(iDataInBatch*nOutputs)+iOutput]);
+                    outputWeightsUpdate[(iOutput *nInputs) +  iInput] += (*inData)[(iInput*_nTrainDataRecords) + iDataInBatch] * (_trainGeneratedLabels[(iOutput*_nTrainDataRecords) + iDataInBatch]-_trainDataLabels[(iOutput*_nTrainDataRecords) + iDataInBatch]);
                   }
                 }
               }
               // Bias units have a 1 for the input weights of the unit, otherwise same as above
               for(int iBias = 0; iBias < nOutputs; ++iBias){
-                outputBiasesUpdate[iBias] += (1.0/nInputs)*(_trainGeneratedLabels[(iDataInBatch*_nOutputUnits)+iBias]-_trainDataLabels[(iDataInBatch*_nOutputUnits)+iBias]);
+                 outputBiasesUpdate[iBias] += (_trainGeneratedLabels[(iBias *_nTrainDataRecords)  + iDataInBatch]-_trainDataLabels[(iBias *_nTrainDataRecords)  + iDataInBatch]);
               }
-              
-              
-              
             }else{
               // Softmax with cross entropy has a simple derviative form for the weights on the input to the output units
               for(int iInput = 0; iInput < nInputs; ++iInput){
                 for(int iOutput = 0; iOutput < nOutputs; ++iOutput){
-                  outputWeightsUpdate[(iInput*nOutputs)+iOutput] += (1.0/nInputs)*(*inData)[(iDataInBatch*nInputs)+iInput] * (_trainGeneratedLabels[(iDataInBatch*nOutputs)+iOutput]-_trainDataLabels[(iDataInBatch*nOutputs)+iOutput]);
+                  outputWeightsUpdate[(iOutput *nInputs) +  iInput] += (*inData)[(iInput*_nTrainDataRecords) + iDataInBatch] * (_trainGeneratedLabels[(iOutput*_nTrainDataRecords) + iDataInBatch]-_trainDataLabels[(iOutput*_nTrainDataRecords) + iDataInBatch]);
+                  
                 }
               }
               // Bias units have a 1 for the input weights of the unit, otherwise same as above
               for(int iBias = 0; iBias < nOutputs; ++iBias){
-                outputBiasesUpdate[iBias] += (1.0/nInputs)*(_trainGeneratedLabels[(iDataInBatch*_nOutputUnits)+iBias]-_trainDataLabels[(iDataInBatch*_nOutputUnits)+iBias]);
+                outputBiasesUpdate[iBias] += (_trainGeneratedLabels[(iBias *_nTrainDataRecords) + iDataInBatch] - _trainDataLabels[(iBias *_nTrainDataRecords)  + iDataInBatch]);
               }
             }
             break;
@@ -1185,7 +1216,8 @@ bool nnet::backProp(size_t nBatchIndicator,
                     for(int iOutput = 0; iOutput < nOutputs; ++iOutput){
                       if(dropoutMask[iDropoutLayerIndex][iOutput] == 0){
                         for(int iNext = 0; iNext < nOutputOutputs; iNext++){
-                          hiddenWeightsUpdate[iWgtMat][(iInput*nOutputs)+iOutput]  += (1.0/nInputs)*(*inData)[(iDataInBatch*nInputs)+iInput]* _hiddenGradients[iWgtMat][iDataInBatch*nOutputs+iOutput]*(*forwardWeightsUpdate)[(iOutput*nOutputOutputs)+iNext];
+                          //hiddenWeightsUpdate[iWgtMat][(iInput*nOutputs)+iOutput]  += (1.0/nInputs)*(*inData)[(iDataInBatch*nInputs)+iInput]* _hiddenGradients[iWgtMat][iDataInBatch*nOutputs+iOutput]*(*forwardWeightsUpdate)[(iOutput*nOutputOutputs)+iNext];
+                          hiddenWeightsUpdate[iWgtMat][(iOutput*nInputs) + iInput]  += (*inData)[(iInput * _nTrainDataRecords) +iDataInBatch]* _hiddenGradients[iWgtMat][(iOutput*_nTrainDataRecords) + iDataInBatch]*(*forwardWeightsUpdate)[(iNext*nOutputs) + iOutput];
                         }
                       }
                     }
@@ -1197,7 +1229,8 @@ bool nnet::backProp(size_t nBatchIndicator,
                   for(int iOutput = 0; iOutput < nOutputs; iOutput++){
                     if(dropoutMask[iDropoutLayerIndex][iOutput] == 0){
                       for(int iNext = 0; iNext< nOutputOutputs; iNext++){
-                        hiddenBiasesUpdate[iWgtMat][iOutput] += (1.0/nInputs)*_hiddenGradients[iWgtMat][iDataInBatch*nOutputs+iOutput]*(*forwardWeightsUpdate)  [(iOutput*nOutputOutputs)+iNext];
+                        // hiddenBiasesUpdate[iWgtMat][iOutput] += (1.0/nInputs)*_hiddenGradients[iWgtMat][iDataInBatch*nOutputs+iOutput]*(*forwardWeightsUpdate)  [(iOutput*nOutputOutputs)+iNext];
+                        hiddenBiasesUpdate[iWgtMat][iOutput] += _hiddenGradients[iWgtMat][(iOutput* _nTrainDataRecords) +iDataInBatch]*(*forwardWeightsUpdate)  [(iNext*nOutputs) + iOutput];
                       }
                     }
                   }
@@ -1208,7 +1241,8 @@ bool nnet::backProp(size_t nBatchIndicator,
                 for(int iInput = 0; iInput < nInputs; ++iInput){
                   for(int iOutput = 0; iOutput < nOutputs; ++iOutput){
                     for(int iNext = 0; iNext < nOutputOutputs; iNext++){
-                      hiddenWeightsUpdate[iWgtMat][(iInput*nOutputs)+iOutput]  += (1.0/nInputs)*(*inData)[(iDataInBatch*nInputs)+iInput]* _hiddenGradients[iWgtMat][iDataInBatch*nOutputs+iOutput]*(*forwardWeightsUpdate)[(iOutput*nOutputOutputs)+iNext];
+                      //hiddenWeightsUpdate[iWgtMat][(iInput*nOutputs)+iOutput]  += (1.0/nInputs)*(*inData)[(iDataInBatch*nInputs)+iInput]* _hiddenGradients[iWgtMat][iDataInBatch*nOutputs+iOutput]*(*forwardWeightsUpdate)[(iOutput*nOutputOutputs)+iNext];
+                      hiddenWeightsUpdate[iWgtMat][(iOutput*nInputs) + iInput]  += (*inData)[(iInput * _nTrainDataRecords)+iDataInBatch]* _hiddenGradients[iWgtMat][(iOutput*_nTrainDataRecords) + iDataInBatch]*(*forwardWeightsUpdate)[iNext*nOutputs + iOutput];
                     }
                   }
                 }
@@ -1217,7 +1251,8 @@ bool nnet::backProp(size_t nBatchIndicator,
                 for(int iInput = 0; iInput < 1; ++iInput){
                   for(int iOutput = 0; iOutput < nOutputs; iOutput++){
                     for(int iNext = 0; iNext< nOutputOutputs; iNext++){
-                      hiddenBiasesUpdate[iWgtMat][iOutput] += (1.0/nInputs)*_hiddenGradients[iWgtMat][iDataInBatch*nOutputs+iOutput]*(*forwardWeightsUpdate)  [(iOutput*nOutputOutputs)+iNext];
+                      //hiddenBiasesUpdate[iWgtMat][iOutput] += (1.0/nInputs)*_hiddenGradients[iWgtMat][iDataInBatch*nOutputs+iOutput]*(*forwardWeightsUpdate)  [(iOutput*nOutputOutputs)+iNext];
+                      hiddenBiasesUpdate[iWgtMat][iOutput] += _hiddenGradients[iWgtMat][(iOutput * _nTrainDataRecords) + iDataInBatch]*(*forwardWeightsUpdate)  [(iNext *nOutputs) + iOutput];
                     }
                   }
                 }
@@ -1299,9 +1334,9 @@ bool nnet::backProp(size_t nBatchIndicator,
       if(_epochTrainCostUpdates.size()>2){
         if((_epochTrainCostUpdates[_epochTrainCostUpdates.size()-1] > _epochTrainCostUpdates[_epochTrainCostUpdates.size()-2]) &&
            (_epochTrainCostUpdates[_epochTrainCostUpdates.size()-2] > _epochTrainCostUpdates[_epochTrainCostUpdates.size()-3])){
-          std::cout << "Traing cost rose twice in a row so quitting!\n";
-          allOk = false;
-          break;
+          std::cout << "Training cost rose twice in a row\n";
+          //allOk = false;
+          //break;
           
         }
       }
@@ -1321,8 +1356,8 @@ bool nnet::loadTrainDataFromFile(char *filename, bool hasHeader, char delim){
   bool first = true;
   int nRecords = 0;
   size_t nDelims = 0;
-  double dataValue;
-  //std::vector<double> *indata_ptr = new std::vector<double>;
+  
+  std::vector<double> indata;
   
   _trainDataLabelsLoaded = false;
   _trainDataLoaded = false;
@@ -1374,8 +1409,12 @@ bool nnet::loadTrainDataFromFile(char *filename, bool hasHeader, char delim){
         if(allOk){
           std::vector<double> rowValues = std::vector<double>(std::istream_iterator<double>(in), std::istream_iterator<double>());
           for (std::vector<double>::const_iterator it(rowValues.begin()), end(rowValues.end()); it != end; ++it) {
-            dataValue = *it;
-            _trainDataFeedForwardValues[0].push_back(dataValue);
+            indata.push_back(*it);
+            
+          }
+          if((indata.size()% (nDelims+1)) != 0 ){
+            std::cout << "Number of data is not an integer multiple of first line fields!" << std::endl;
+            allOk = false;
           }
         }else{
           break;
@@ -1384,11 +1423,20 @@ bool nnet::loadTrainDataFromFile(char *filename, bool hasHeader, char delim){
     }
   }
   if(allOk){
-    //_trainDataFeedForwardValues.push_back(*indata_ptr);
+    _nInputUnits = nDelims + 1;
+    _nTrainDataRecords = nRecords;
+    
+    _trainDataFeedForwardValues[0].resize(indata.size());
+    
+    for(size_t iCol = 0; iCol < _nInputUnits; iCol++){
+      for(size_t iRow = 0; iRow < _nTrainDataRecords; iRow++){
+        _trainDataFeedForwardValues[0][iCol*_nTrainDataRecords + iRow] = indata[iRow*_nInputUnits + iCol];
+      }
+    }
     _trainDataLoaded = true;
     _trainDataShuffled = false;
-    _nTrainDataRecords = nRecords;
-    _nInputUnits = nDelims + 1;
+    
+    
     std::cout << "Read " << _trainDataFeedForwardValues[0].size() << " data of " << nRecords << " by " << nDelims + 1 << std::endl;
   }
   return allOk;
@@ -1399,7 +1447,7 @@ bool nnet::loadTrainDataLabelsFromFile(char *filename, bool hasHeader, char deli
   bool first = true;
   int nRecords = 0;
   size_t nDelims = 0;
-  double dataValue;
+  std::vector<double> indata;
   
   _trainDataLabelsLoaded = false;
   _trainDataLabels.resize(0);
@@ -1441,8 +1489,7 @@ bool nnet::loadTrainDataLabelsFromFile(char *filename, bool hasHeader, char deli
         if(allOk){
           std::vector<double> rowValues = std::vector<double>(std::istream_iterator<double>(in), std::istream_iterator<double>());
           for (std::vector<double>::const_iterator it(rowValues.begin()), end(rowValues.end()); it != end; ++it) {
-            dataValue = *it;
-            _trainDataLabels.push_back(dataValue);
+            indata.push_back(*it);
           }
         }else{
           break;
@@ -1451,9 +1498,31 @@ bool nnet::loadTrainDataLabelsFromFile(char *filename, bool hasHeader, char deli
     }
   }
   if(allOk){
-    _trainDataLabelsLoaded = true;
+    if((indata.size()% (nDelims+1)) != 0 ){
+      std::cout << "Number of data is not an integer multiple of first line fields!" << std::endl;
+      allOk = false;
+    }
+    if(indata.size() != _nTrainDataRecords * (nDelims+1)){
+      std::cout << "Expected " << _nTrainDataRecords * (nDelims+1) << " Labels, got " << indata.size() << "!" << std::endl;
+      allOk = false;
+    }
+  }
+  
+  
+  if(allOk){
     _nOutputUnits = nDelims + 1;
-    std::cout << "Read " << _trainDataLabels.size() << " class labels of " << nRecords << " by " << _nOutputUnits << std::endl;
+    
+    _trainDataLabels.resize(indata.size());
+    
+    for(size_t iCol = 0; iCol < _nOutputUnits; iCol++){
+      for(size_t iRow = 0; iRow < _nTrainDataRecords; iRow++){
+        _trainDataLabels[iCol*_nTrainDataRecords + iRow] = indata[(iRow * _nOutputUnits)+iCol];
+      }
+    }
+    
+    _trainDataLabelsLoaded = true;
+    
+    std::cout << "Read " << _trainDataLabels.size() << " labels of " << nRecords << " by " << _nOutputUnits << std::endl;
   }
   return allOk;
 };
@@ -1463,7 +1532,7 @@ bool nnet::loadNonTrainDataFromFile(char *filename, bool hasHeader, char delim){
   bool first = true;
   int nRecords = 0;
   size_t nDelims = 0;
-  double dataValue;
+  std::vector<double> indata;
   
   _nonTrainDataLabelsLoaded = false;
   _nonTrainDataLoaded = false;
@@ -1511,8 +1580,7 @@ bool nnet::loadNonTrainDataFromFile(char *filename, bool hasHeader, char delim){
         if(allOk){
           std::vector<double> rowValues = std::vector<double>(std::istream_iterator<double>(in), std::istream_iterator<double>());
           for (std::vector<double>::const_iterator it(rowValues.begin()), end(rowValues.end()); it != end; ++it) {
-            dataValue = *it;
-            _nonTrainDataFeedForwardValues[0].push_back(dataValue);
+            indata.push_back(*it);
           }
         }else{
           break;
@@ -1521,10 +1589,24 @@ bool nnet::loadNonTrainDataFromFile(char *filename, bool hasHeader, char delim){
     }
   }
   if(allOk){
-    //_testFeedForwardValues.push_back(*indata_ptr);
-    _nonTrainDataLoaded = true;
+    if((indata.size()% (nDelims+1)) != 0 ){
+      std::cout << "Number of data is not an integer multiple of first line fields!\n";
+      allOk = false;
+    }
+
+  }
+  if(allOk){
     _nNonTrainDataRecords = nRecords;
     _nNonTrainDataInputUnits = nDelims + 1;
+    
+    _nonTrainDataFeedForwardValues.resize(indata.size());
+    for(size_t iCol = 0; iCol < _nNonTrainDataInputUnits; iCol++){
+      for(size_t iRow = 0; iRow < _nNonTrainDataRecords; iRow++){
+        _nonTrainDataFeedForwardValues[0][iCol*_nNonTrainDataRecords + iRow] = indata[ (iRow*_nNonTrainDataInputUnits) + iCol];
+      }
+    }
+    _nonTrainDataLoaded = true;
+    
     std::cout << "Read " << _nonTrainDataFeedForwardValues[0].size() << " data of " << nRecords << " by " << nDelims + 1 << std::endl;
   }
   return allOk;
@@ -1535,7 +1617,7 @@ bool nnet::loadNonTrainDataLabelsFromFile(char *filename, bool hasHeader, char d
   bool first = true;
   int nRecords = 0;
   size_t nDelims = 0;
-  double dataValue;
+  std::vector<double> indata;
   
   _nonTrainDataLabelsLoaded = false;
   _nonTrainDataLabels.resize(0);
@@ -1576,8 +1658,7 @@ bool nnet::loadNonTrainDataLabelsFromFile(char *filename, bool hasHeader, char d
         if(allOk){
           std::vector<int> rowValues = std::vector<int>(std::istream_iterator<int>(in), std::istream_iterator<int>());
           for (std::vector<int>::const_iterator it(rowValues.begin()), end(rowValues.end()); it != end; ++it) {
-            dataValue = *it;
-            _nonTrainDataLabels.push_back(dataValue);
+            indata.push_back(*it);
           }
         }else{
           break;
@@ -1585,30 +1666,58 @@ bool nnet::loadNonTrainDataLabelsFromFile(char *filename, bool hasHeader, char d
       }
     }
   }
+  
   if(allOk){
-    _nonTrainDataLabelsLoaded = true;
+    if((indata.size()% (nDelims+1)) != 0 ){
+      std::cout << "Number of data is not an integer multiple of first line fields!" << std::endl;
+      allOk = false;
+    }
+    if(indata.size() != _nNonTrainDataRecords * (nDelims+1)){
+      std::cout << "Expected " << _nNonTrainDataRecords * (nDelims+1) << "Labels, got " << indata.size() << "!" << std::endl;
+      allOk = false;
+    }
+  }
+  
+  if(allOk){
     _nNonTrainDataOutputUnits = nDelims + 1;
-    std::cout << "Read " << _nonTrainDataLabels.size() << " class labels of " << nRecords << " by " << _nOutputUnits << std::endl;
+    _nonTrainDataLabels.resize(indata.size());
+    
+    // Flip from row major to column major
+    for(size_t iCol = 0; iCol < _nNonTrainDataOutputUnits; iCol++){
+      for(size_t iRow = 0; iRow < _nNonTrainDataRecords; iRow++){
+        _nonTrainDataLabels[iCol*_nNonTrainDataRecords + iRow] = indata[iRow*_nNonTrainDataOutputUnits + iCol];
+      }
+    }
+    
+    _nonTrainDataLabelsLoaded = true;
+    
+    std::cout << "Read " << _nonTrainDataLabels.size() << " labels of " << nRecords << " by " << _nOutputUnits << std::endl;
   }
   return allOk;
 };
 
 void nnet::writeWeightValues(){
   size_t nRows = 0, nCols = 0;
-  
+  nRows = _nInputUnits;
   for(int i = 0; i < _hiddenWeights.size(); i++){
-    if(i == 0){
-      nRows = _nInputUnits;
-    }else{
-      nRows = _hiddenLayerSizes[i -1];
-    }
-    nCols = _hiddenLayerSizes[i -1];
+        nCols = _hiddenLayerSizes[i];
     std::ostringstream oss;
-    oss << _outputDir << "Weights " << i << ".csv";
+    oss << _outputDir << "weights" << i << ".csv";
     mat_ops::writeMatrix(oss.str(), _hiddenWeights[i],nRows,nCols);
-    oss << _outputDir << "Bias " << i << ".csv";
+    oss.str(std::string());
+    oss << _outputDir << "bias" << i << ".csv";
     mat_ops::writeMatrix(oss.str(), _hiddenBiases[i],1,nCols);
-  }
+    nRows = _hiddenLayerSizes[i];
+ }
+  nCols = _nOutputUnits;
+  std::ostringstream oss;
+  oss << _outputDir << "weights" << _hiddenWeights.size() << ".csv";
+  mat_ops::writeMatrix(oss.str(), _outputWeights,nRows,nCols);
+  
+  oss.str(std::string());
+  oss << _outputDir << "bias" << _hiddenWeights.size() << ".csv";
+  mat_ops::writeMatrix(oss.str(), _outputBiases,1,nCols);
+  
   return;
 }
 
@@ -1683,21 +1792,30 @@ void nnet::printOutputType(){
 }
 
 void nnet::printGeometry(){
-  int iLayer = 2;
+  std::cout << "### Geometry ###\n";
   std::cout << "Input units: " << _nInputUnits << std::endl;
-  for(std::vector<int>::iterator it = _hiddenLayerSizes.begin(); it != _hiddenLayerSizes.end(); ++it) {
-    std::cout << "Layer " << iLayer++ << " units: " << *it << std::endl;
+  if(_hiddenLayerSizes.size()>0){
+    for(int iLayer =0; iLayer < _hiddenLayerSizes.size(); iLayer++) {
+      std::cout << "Layer " << iLayer + 1 << " units: " << _hiddenLayerSizes[iLayer] << std::endl;
+    }
+  }else{
+    std::cout << "No hidden Layers\n";
   }
   std::cout << "Output units: " << _nOutputUnits << std::endl;
 }
 
-void nnet::printTrainLabels(){
+void nnet::printTrainLabels(size_t nRecords){
   if(_trainDataLabelsLoaded){
+    if(nRecords == 0){
+      nRecords = _nTrainDataRecords;
+    }else{
+      nRecords = std::min(nRecords, _nTrainDataRecords);
+    }
     std::cout << "Printing Labels" << std::endl;
-    for(int i = 0; i < _nTrainDataRecords; i++){
-      std::cout << "Record " << i + 1 << ": ";
-      for(int j = 0; j < _nOutputUnits; j++){
-        std::cout << _trainDataLabels[(i*_nOutputUnits)+j] << " | ";
+    for(int iRow = 0; iRow < nRecords; iRow++){
+      std::cout << "Record " << iRow + 1 << ": ";
+      for(int iCol = 0; iCol < _nOutputUnits; iCol++){
+        std::cout << _trainDataLabels[(iCol*_nTrainDataRecords)+iRow] << " | ";
       }
       std::cout << std::endl;
     }
@@ -1706,10 +1824,15 @@ void nnet::printTrainLabels(){
   }
 }
 
-void nnet::printNonTrainLabels(){
+void nnet::printNonTrainLabels(size_t nRecords){
   if(_nonTrainDataLabelsLoaded){
+    if(nRecords == 0){
+      nRecords = _nNonTrainDataRecords;
+    }else{
+      nRecords = std::min(nRecords, _nNonTrainDataRecords);
+    }
     std::cout << "Printing Non Train Labels" << std::endl;
-    for(int i = 0; i < _nNonTrainDataRecords; i++){
+    for(int i = 0; i < nRecords; i++){
       std::cout << "Record " << i + 1 << ": ";
       for(int j = 0; j < _nNonTrainDataOutputUnits; j++){
         std::cout << _nonTrainDataLabels[(i*_nNonTrainDataOutputUnits)+j] << " | ";
@@ -1752,7 +1875,7 @@ void nnet::printWeights(int iWeightsIndex){
         if(it == _hiddenBiases[iWeightsIndex].begin()){
           std::cout << *it;
         }else{
-          std::cout <<  " : " << *it;
+          std::cout <<  "| " << *it;
         }
       }
       std::cout << std::endl;
@@ -1791,7 +1914,7 @@ void nnet::printOutputWeights(){
       if(it == _outputBiases.begin()){
         std::cout << *it;
       }else{
-        std::cout <<  " : " << *it;
+        std::cout <<  "| " << *it;
       }
     }
     std::cout << std::endl;
@@ -1848,14 +1971,22 @@ void nnet::printGradients(int iWeightsIndex){
   }
 }
 
-void nnet::printTrainData(){
+void nnet::printTrainData(size_t nRecords){
+  
   if(_trainDataLoaded){
+    if(nRecords == 0){
+      nRecords = _nTrainDataRecords;
+    }else{
+      nRecords = std::min(nRecords, _nTrainDataRecords);
+    }
+
+    size_t rowsToPrint = std::min(_nTrainDataRecords,nRecords);
     std::cout << "Printing data" << std::endl;
-    for(int i = 0; i < _nTrainDataRecords; i++){
-      std::cout << " Record " << i + 1 << ": \t";
-      for(int j = 0; j < _nInputUnits; j++){
+    for(int iRow = 0; iRow < rowsToPrint; iRow++){
+      std::cout << " Record " << iRow + 1 << ": \t";
+      for(int iCol = 0; iCol < _nInputUnits; iCol++){
         std::cout << std::fixed;
-        std::cout << std::setprecision(3) << _trainDataFeedForwardValues[0][(i*_nInputUnits)+j] << " | ";
+        std::cout << std::setprecision(3) << _trainDataFeedForwardValues[0][(iCol*_nTrainDataRecords)+iRow] << " | ";
       }
       std::cout << std::endl;
     }
@@ -1864,31 +1995,19 @@ void nnet::printTrainData(){
   }
 }
 
-void nnet::printTrainData(size_t rows){
-  if(_trainDataLoaded){
-    size_t rowsToPrint = std::min(_nTrainDataRecords,rows);
-    std::cout << "Printing data" << std::endl;
-    for(int i = 0; i < rowsToPrint; i++){
-      std::cout << " Record " << i + 1 << ": \t";
-      for(int j = 0; j < _nInputUnits; j++){
-        std::cout << std::fixed;
-        std::cout << std::setprecision(3) << _trainDataFeedForwardValues[0][(i*_nInputUnits)+j] << " | ";
-      }
-      std::cout << std::endl;
-    }
-  }else{
-    std::cout << "No data loaded" <<std::endl;
-  }
-}
-
-void nnet::printNonTrainData(){
+void nnet::printNonTrainData(size_t nRecords){
   if(_nonTrainDataLoaded){
+    if(nRecords == 0){
+      nRecords = _nNonTrainDataRecords;
+    }else{
+      nRecords = std::min(nRecords, _nNonTrainDataRecords);
+    }
     std::cout << "Printing data" << std::endl;
-    for(int i = 0; i < _nNonTrainDataRecords; i++){
-      std::cout << " Record " << i + 1 << ": \t";
-      for(int j = 0; j < _nNonTrainDataInputUnits; j++){
+    for(int iRow = 0; iRow < nRecords; iRow++){
+      std::cout << " Record " << iRow + 1 << ": \t";
+      for(int iCol = 0; iCol < _nNonTrainDataInputUnits; iCol++){
         std::cout << std::fixed;
-        std::cout << std::setprecision(3) << _nonTrainDataFeedForwardValues[0][(i*_nNonTrainDataInputUnits)+j] << " | ";
+        std::cout << std::setprecision(3) << _nonTrainDataFeedForwardValues[0][(iCol*_nNonTrainDataRecords)+iRow] << " | ";
       }
       std::cout << std::endl;
     }
@@ -1897,32 +2016,20 @@ void nnet::printNonTrainData(){
   }
 }
 
-void nnet::printNonTrainData(size_t rows){
-  if(_nonTrainDataLoaded){
-    size_t rowsToPrint = std::min(_nNonTrainDataRecords,rows);
-    std::cout << "Printing data" << std::endl;
-    for(int i = 0; i < rowsToPrint; i++){
-      std::cout << " Record " << i + 1 << ": \t";
-      for(int j = 0; j < _nNonTrainDataInputUnits; j++){
-        std::cout << std::fixed;
-        std::cout << std::setprecision(3) << _nonTrainDataFeedForwardValues[0][(i*_nNonTrainDataInputUnits)+j] << " | ";
-      }
-      std::cout << std::endl;
-    }
-  }else{
-    std::cout << "No non-train data loaded" <<std::endl;
-  }
-}
-
-
-void nnet::printOutValues(){
+void nnet::printOutputUnitValues(size_t nRecords){
   std::cout << "Printing the Output Unit Values" << std::endl;
   if(_trainLabelsGenerated){
-    for(int i = 0; i < _nTrainDataRecords; i++){
-      std::cout << " Record " << i + 1 << ": \t";
-      for(int j = 0; j < _nOutputUnits; j++){
+    if(nRecords == 0){
+      nRecords = _nTrainDataRecords;
+    }else{
+      nRecords = std::min(nRecords, _nTrainDataRecords);
+    }
+    
+    for(int iRow = 0; iRow < nRecords; iRow++){
+      std::cout << " Record " << iRow + 1 << ": \t";
+      for(int iCol = 0; iCol < _nOutputUnits; iCol++){
         std::cout << std::fixed;
-        std::cout << std::setprecision(2) << _trainGeneratedLabels[(i*_nOutputUnits)+j] << " | ";
+        std::cout << std::setprecision(2) << _trainGeneratedLabels[(iCol*_nTrainDataRecords)+iRow] << " | ";
       }
       std::cout << std::endl;
     }
@@ -1931,6 +2038,7 @@ void nnet::printOutValues(){
   }
 }
 
+/* FIX THIS TO COLUMN MAJOR */
 void nnet::printFeedForwardValues(int iIndex){
   size_t nRows = 0;
   size_t nCols = 0;

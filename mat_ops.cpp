@@ -15,16 +15,10 @@
 #include <gsl/gsl_eigen.h>
 #include <gsl/gsl_blas.h>
 
-
-//#include <Eigen/Dense>
-//#include <Eigen/StdVector>
-//using namespace std;
-//using namespace Eigen;
-
-
 void mat_ops::matMul(size_t Arows, size_t Acols, std::vector<double>& A, size_t Bcols, std::vector<double>& B, std::vector<double>& C){
   double alpha = 1.0;
   double beta = 1.0;
+  size_t ldA = Arows, ldB = Acols, ldC = Arows;
   if(A.size() != Arows*Acols){
     std::cout << "***** A rows and columns misspecified\n";
   }
@@ -35,8 +29,8 @@ void mat_ops::matMul(size_t Arows, size_t Acols, std::vector<double>& A, size_t 
     std::cout << "***** C is of the wrong size\n";
   }
   
-  cblas_dgemm(CblasRowMajor, CblasNoTrans, CblasNoTrans,
-              (int)Arows, (int)Bcols, (int)Acols, alpha, A.data(), (int)Acols, B.data(), (int)Bcols, beta, C.data(), (int)Bcols);
+  cblas_dgemm(CblasColMajor, CblasNoTrans, CblasNoTrans,
+              (int)Arows, (int)Bcols, (int)Acols, alpha, A.data(), (int)ldA, B.data(), (int)ldB, beta, C.data(), (int)ldC);
 
   return;
 }
@@ -55,7 +49,7 @@ void mat_ops::pca(std::vector<double>& inMat, size_t nInMatCols, size_t nPcaMatC
   
   for(size_t iRow = 0; iRow < nRows; iRow++){
     for (size_t iCol = 0; iCol < nCols; iCol++){
-      gsl_matrix_set (inMatrix, iCol, iRow, inMat[(iRow*nCols)+iCol]);
+      gsl_matrix_set (inMatrix, iCol, iRow, inMat[(iCol * nRows) + iRow]);
     }
   }
   outMatrix = gsl_pca(inMatrix,(int)nPcaMatCols,eigenvectors);
@@ -63,14 +57,14 @@ void mat_ops::pca(std::vector<double>& inMat, size_t nInMatCols, size_t nPcaMatC
   inMat.assign(nRows*nPcaMatCols,0.0);
   for(size_t iRow = 0; iRow < nRows; iRow++){
     for (size_t iCol = 0; iCol < nPcaMatCols; iCol++){
-      inMat[iRow*nPcaMatCols + iCol] = gsl_matrix_get (outMatrix, iCol, iRow);
+      inMat[(iCol*nRows) + iRow] = gsl_matrix_get (outMatrix, iCol, iRow);
     }
   }
   
   eigenMat.assign(nCols*nCols,0.0);
   for(size_t iRow = 0; iRow < nCols; iRow++){
     for (size_t iCol = 0; iCol < nCols; iCol++){
-      eigenMat[iRow*nCols + iCol] = gsl_matrix_get (eigenvectors, iCol, iRow);
+      eigenMat[(iCol*nCols) + iRow] = gsl_matrix_get (eigenvectors, iCol, iRow);
     }
   }
   
@@ -97,13 +91,13 @@ void mat_ops::pcaProject(std::vector<double>& inMat, size_t nInMatCols, size_t n
   
   for(size_t iRow = 0; iRow < nRows; iRow++){
     for (size_t iCol = 0; iCol < nCols; iCol++){
-      gsl_matrix_set (inMatrix, iCol, iRow, inMat[(iRow*nCols)+iCol]);
+      gsl_matrix_set (inMatrix, iCol, iRow, inMat[(iCol * nRows) + iRow]);
     }
   }
   
   for(size_t iRow = 0; iRow < nCols; iRow++){
     for (size_t iCol = 0; iCol < nCols; iCol++){
-      gsl_matrix_set (eigenMatrix, iCol, iRow, eigenMat[(iRow*nCols)+iCol]);
+      gsl_matrix_set (eigenMatrix, iCol, iRow, eigenMat[(iCol * nRows) + iRow]);
     }
   }
   
@@ -112,7 +106,7 @@ void mat_ops::pcaProject(std::vector<double>& inMat, size_t nInMatCols, size_t n
   inMat.assign(nRows*nPcaMatCols,0.0);
   for(size_t iRow = 0; iRow < nRows; iRow++){
     for (size_t iCol = 0; iCol < nPcaMatCols; iCol++){
-      inMat[iRow*nPcaMatCols + iCol] = gsl_matrix_get (outMatrix, iCol, iRow);
+      inMat[(iCol * nRows) + iRow] = gsl_matrix_get (outMatrix, iCol, iRow);
     }
   }
   
@@ -200,50 +194,13 @@ gsl_matrix* mat_ops::gsl_pca_project(const gsl_matrix* data, unsigned int L, gsl
   return result;
 }
 
-
-
-//void mat_ops::matMul(size_t Arows, size_t Acols, std::vector<double>& A, size_t Bcols, std::vector<double>& B, std::vector<double>& C){
-//  double *Aptr, *Bptr, *Cptr, *Xptr, *Zptr;
-//  Aptr = A.data();
-//  Bptr = B.data();
-//  Cptr = C.data();
-//  std::vector<double> x(Arows* Acols);
-//  std::vector<double> z(Arows*Acols);
-//  for(int i = 0; i < x.size(); i++){
-//    x[i] = i+1;
-//  }
-//  Xptr = x.data();
-//  Zptr = z.data();
-//  Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor> eigenX;
-//  Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor> eigenZ;
-//  eigenX = Eigen::Map<Eigen::MatrixXd>( Xptr,Arows,Acols);
-//  Eigen::Map<Eigen::MatrixXd>(Zptr,Arows,Acols) = eigenX;
-//  x[3] = -3;
-//  z[4] = -4;
-//  
-//  Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor> eigenA;
-//  Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor> eigenB;
-//  Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor> eigenC;
-//  eigenA = Eigen::Map<Eigen::MatrixXd>( Aptr, Arows, Acols);
-//  eigenB = Eigen::Map<Eigen::MatrixXd>( Bptr, Acols, Bcols);
-//  eigenC = Eigen::Map<Eigen::MatrixXd>( Cptr, Arows, Bcols);
-//  
-//  eigenC.noalias() += eigenA * eigenB;
-//  
-//  
-//  Eigen::Map<Eigen::MatrixXd>(Cptr,Arows,Bcols) = eigenC;
-// 
-//  
-//}
-
-
 void mat_ops::writeMatrix(std::string filename, std::vector<double> outMat, size_t nRows, size_t nCols){
   std::ofstream myfile;
   myfile.open (filename);
-  for(int i = 0; i < nRows; i++){
-    for(int j = 0; j < nCols; j++){
-      myfile << outMat[i *nCols + j] ;
-      if(j < nCols - 1){
+  for(int iRow = 0; iRow < nRows; iRow++){
+    for(int iCol = 0; iCol < nCols; iCol++){
+      myfile << outMat[(iCol *nRows) + iRow] ;
+      if(iCol < nCols - 1){
         myfile << ", ";
       }
       

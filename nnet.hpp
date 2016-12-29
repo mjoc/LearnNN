@@ -31,6 +31,13 @@ public:
     DATA_RANGE_BOUND
   };
   
+  enum initialiseType
+  {
+    INIT_CONST_TYPE,
+    INIT_GAUSS_TYPE,
+    INIT_UNIFORM_TYPE
+  };
+  
 private:
   rng *_rng;
   std::string _outputDir;
@@ -111,11 +118,11 @@ private:
                                      std::vector<double>& gradients,
                                      double nesterovAdj = 0.0);
   void activateOutput(std::vector<double>& values);
-  void flowDataThroughNetwork(std::vector<std::vector<double> > dataflowStages,
+  void flowDataThroughNetwork(std::vector<std::vector<double> >& dataflowStages,
                               std::vector<double>& dataFlowMatrix,
                               bool calcTrainGradients,
                               double nesterovAdj);
-  void flowDataThroughNetwork(std::vector<std::vector<double> > dataflowStages,
+  void flowDataThroughNetwork(std::vector<std::vector<double> >& dataflowStages,
                               std::vector<double>& dataFlowMatrix,
                               bool calcTrainGradients,
                               double nesterovAdj,
@@ -124,6 +131,8 @@ private:
 public:
   nnet();
   ~nnet();
+  
+  void setOutputFolder(char *filename);
   
 // Import Data Methods
   bool loadTrainDataFromFile(char *filename,
@@ -149,7 +158,7 @@ public:
   // Preprocessing methods on Train Data
   void normTrainData(normDataType normType);
   void shuffleTrainData();
-  void pcaTrainData(size_t dimensions);
+  void pcaTrainData(size_t dimensions = 0);
   
  
   // Preprocessing methods on Non Train Data
@@ -158,8 +167,8 @@ public:
   void pcaNonTrainData();
 
   // Feed forward
-  void feedForwardTrainData(bool calcGradients,
-                            double nestorovAdj);
+  void feedForwardTrainData(bool calcGradients = false,
+                            double nestorovAdj = 0.0);
   void feedForwardTrainData(bool calcGradients,
                             double nestorovAdj,
                             std::vector<std::vector<int> >& dropouts);
@@ -176,7 +185,7 @@ public:
                    size_t momDecaySchedule,
                    double momFinal);
 
-  void initialiseWeights(double stdev);
+  void initialiseWeights(initialiseType initialtype = INIT_CONST_TYPE, double param1 = 0.0);
   void setDropout(bool doDropout);
   bool backProp(size_t nBatchIndicator,
                 double wgtLearnRate,
@@ -193,16 +202,15 @@ public:
   double getTrainDataAccuracy();
   double getNonTrainDataCost();
   double getNonTrainDataAccuracy();
+  size_t getNTrainData();
   
   
 // Print to screen methods
-  void printOutValues();
-  void printTrainData();
-  void printTrainData(size_t rows);
-  void printNonTrainData();
-  void printNonTrainData(size_t rows);
-  void printTrainLabels();
-  void printNonTrainLabels();
+  void printOutputUnitValues(size_t nRecords = 0);
+  void printTrainData(size_t nRecords = 0);
+  void printNonTrainData(size_t nRecords = 0);
+  void printTrainLabels(size_t nRecords = 0);
+  void printNonTrainLabels(size_t nRecords = 0);
   void printWeights(int iLayer);
   void printOutputWeights();
   void printGradients(int iLayer);
