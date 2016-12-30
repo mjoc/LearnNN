@@ -38,6 +38,7 @@ nnet::nnet(){
   _trainDataNormType = nnet::DATA_NORM_NONE;
   _nonTrainDataNormType = nnet::DATA_NORM_NONE;
   
+  _shuffleEachEpoch = true;
   _doDropout = false;
   _inputDropoutRate = 0.0;
   _hiddenDropoutRate = 0.0;
@@ -91,6 +92,10 @@ void nnet::doTestCost(bool doTestCost){
 
 void nnet::doDropout(bool doDropout){
    _doDropout = doDropout;
+}
+
+void nnet::setShuffleTrainData(bool doShuffle){
+  _shuffleEachEpoch = doShuffle;
 }
 
 void nnet::setDropoutRates(double inputDropout, double hiddenDropout){
@@ -990,7 +995,7 @@ bool nnet::backProp(size_t nBatchIndicator,
   bool allOk = true;
   size_t nInputs, nOutputs, iDataStart, iDataStop;
   
-  size_t nBatchSize;
+  size_t nBatchSizeTarget;
   double initialCost = 0.0, cost = 0.0, testCost = 0.0;
   double momentum_mu = _momMu;
   
@@ -1000,9 +1005,9 @@ bool nnet::backProp(size_t nBatchIndicator,
   _epochTestCostUpdates.resize(0);
   
   if (nBatchIndicator < 1){
-    nBatchSize = _nTrainDataRecords;
+    nBatchSizeTarget = _nTrainDataRecords;
   }else{
-    nBatchSize = nBatchIndicator;
+    nBatchSizeTarget = nBatchIndicator;
   }
   
   if(_doTestCost){
@@ -1078,11 +1083,14 @@ bool nnet::backProp(size_t nBatchIndicator,
     std::cout << "Initial Test Cost: " << testCost <<  std::endl;
   }
   
-  size_t nIterations =  _nTrainDataRecords/nBatchSize;
-  if (nIterations*nBatchSize < _nTrainDataRecords){
+  size_t nIterations =  _nTrainDataRecords/nBatchSizeTarget;
+  if (nIterations*nBatchSizeTarget < _nTrainDataRecords){
     nIterations++;
   }
   for(int iEpoch = 0; iEpoch < nEpoch; iEpoch++){
+    if(_shuffleEachEpoch){
+      shuffleTrainData();
+    }
     if(_doDropout){
       for(int iLayer = 0; iLayer < _hiddenLayerSizes.size();  ++iLayer) {
         if(iLayer == 0){
@@ -1107,9 +1115,11 @@ bool nnet::backProp(size_t nBatchIndicator,
       /** Calculate updates **/
       /***********************/
       
-      iDataStart = iIteration * nBatchSize;
-      iDataStop = (iIteration + 1) * nBatchSize;
+      iDataStart = iIteration * nBatchSizeTarget;
+      iDataStop = (iIteration + 1) * nBatchSizeTarget;
       iDataStop = ((iDataStop <= _nTrainDataRecords) ? iDataStop : _nTrainDataRecords);
+      
+      size_t  nBatchSize = iDataStop-iDataStart;
       
       //std::cout << "+";
       inData = &_trainDataFeedForwardValues[_trainDataFeedForwardValues.size()-1];
@@ -1156,25 +1166,25 @@ bool nnet::backProp(size_t nBatchIndicator,
               for(int iInput = 0; iInput < nInputs; ++iInput){
                 if(dropoutMask[iDropoutLayerIndex][iInput] == 0){
                   for(int iOutput = 0; iOutput < nOutputs; ++iOutput){
-                    outputWeightsUpdate[(iOutput *nInputs) +  iInput] += (*inData)[(iInput*_nTrainDataRecords) + iDataInBatch] * (_trainGeneratedLabels[(iOutput*_nTrainDataRecords) + iDataInBatch]-_trainDataLabels[(iOutput*_nTrainDataRecords) + iDataInBatch]);
+                    outputWeightsUpdate[(iOutput *nInputs) +  iInput] += (1.0/nBatchSize)*(*inData)[(iInput*_nTrainDataRecords) + iDataInBatch] * (_trainGeneratedLabels[(iOutput*_nTrainDataRecords) + iDataInBatch]-_trainDataLabels[(iOutput*_nTrainDataRecords) + iDataInBatch]);
                   }
                 }
               }
               // Bias units have a 1 for the input weights of the unit, otherwise same as above
               for(int iBias = 0; iBias < nOutputs; ++iBias){
-                 outputBiasesUpdate[iBias] += (_trainGeneratedLabels[(iBias *_nTrainDataRecords)  + iDataInBatch]-_trainDataLabels[(iBias *_nTrainDataRecords)  + iDataInBatch]);
+                 outputBiasesUpdate[iBias] += (1.0/nBatchSize)*(_trainGeneratedLabels[(iBias *_nTrainDataRecords)  + iDataInBatch]-_trainDataLabels[(iBias *_nTrainDataRecords)  + iDataInBatch]);
               }
             }else{
               // Softmax with cross entropy has a simple derviative form for the weights on the input to the output units
               for(int iInput = 0; iInput < nInputs; ++iInput){
                 for(int iOutput = 0; iOutput < nOutputs; ++iOutput){
-                  outputWeightsUpdate[(iOutput *nInputs) +  iInput] += (*inData)[(iInput*_nTrainDataRecords) + iDataInBatch] * (_trainGeneratedLabels[(iOutput*_nTrainDataRecords) + iDataInBatch]-_trainDataLabels[(iOutput*_nTrainDataRecords) + iDataInBatch]);
+                  outputWeightsUpdate[(iOutput *nInputs) +  iInput] += (1.0/nBatchSize)*(*inData)[(iInput*_nTrainDataRecords) + iDataInBatch] * (_trainGeneratedLabels[(iOutput*_nTrainDataRecords) + iDataInBatch]-_trainDataLabels[(iOutput*_nTrainDataRecords) + iDataInBatch]);
                   
                 }
               }
               // Bias units have a 1 for the input weights of the unit, otherwise same as above
               for(int iBias = 0; iBias < nOutputs; ++iBias){
-                outputBiasesUpdate[iBias] += (_trainGeneratedLabels[(iBias *_nTrainDataRecords) + iDataInBatch] - _trainDataLabels[(iBias *_nTrainDataRecords)  + iDataInBatch]);
+                outputBiasesUpdate[iBias] += (1.0/nBatchSize)*(_trainGeneratedLabels[(iBias *_nTrainDataRecords) + iDataInBatch] - _trainDataLabels[(iBias *_nTrainDataRecords)  + iDataInBatch]);
               }
             }
             break;
@@ -1217,7 +1227,7 @@ bool nnet::backProp(size_t nBatchIndicator,
                       if(dropoutMask[iDropoutLayerIndex][iOutput] == 0){
                         for(int iNext = 0; iNext < nOutputOutputs; iNext++){
                           //hiddenWeightsUpdate[iWgtMat][(iInput*nOutputs)+iOutput]  += (1.0/nInputs)*(*inData)[(iDataInBatch*nInputs)+iInput]* _hiddenGradients[iWgtMat][iDataInBatch*nOutputs+iOutput]*(*forwardWeightsUpdate)[(iOutput*nOutputOutputs)+iNext];
-                          hiddenWeightsUpdate[iWgtMat][(iOutput*nInputs) + iInput]  += (*inData)[(iInput * _nTrainDataRecords) +iDataInBatch]* _hiddenGradients[iWgtMat][(iOutput*_nTrainDataRecords) + iDataInBatch]*(*forwardWeightsUpdate)[(iNext*nOutputs) + iOutput];
+                          hiddenWeightsUpdate[iWgtMat][(iOutput*nInputs) + iInput]  += (1.0/nBatchSize)*(*inData)[(iInput * _nTrainDataRecords) +iDataInBatch]* _hiddenGradients[iWgtMat][(iOutput*_nTrainDataRecords) + iDataInBatch]*(*forwardWeightsUpdate)[(iNext*nOutputs) + iOutput];
                         }
                       }
                     }
@@ -1230,7 +1240,7 @@ bool nnet::backProp(size_t nBatchIndicator,
                     if(dropoutMask[iDropoutLayerIndex][iOutput] == 0){
                       for(int iNext = 0; iNext< nOutputOutputs; iNext++){
                         // hiddenBiasesUpdate[iWgtMat][iOutput] += (1.0/nInputs)*_hiddenGradients[iWgtMat][iDataInBatch*nOutputs+iOutput]*(*forwardWeightsUpdate)  [(iOutput*nOutputOutputs)+iNext];
-                        hiddenBiasesUpdate[iWgtMat][iOutput] += _hiddenGradients[iWgtMat][(iOutput* _nTrainDataRecords) +iDataInBatch]*(*forwardWeightsUpdate)  [(iNext*nOutputs) + iOutput];
+                        hiddenBiasesUpdate[iWgtMat][iOutput] += (1.0/nBatchSize)*_hiddenGradients[iWgtMat][(iOutput* _nTrainDataRecords) +iDataInBatch]*(*forwardWeightsUpdate)  [(iNext*nOutputs) + iOutput];
                       }
                     }
                   }
@@ -1242,7 +1252,7 @@ bool nnet::backProp(size_t nBatchIndicator,
                   for(int iOutput = 0; iOutput < nOutputs; ++iOutput){
                     for(int iNext = 0; iNext < nOutputOutputs; iNext++){
                       //hiddenWeightsUpdate[iWgtMat][(iInput*nOutputs)+iOutput]  += (1.0/nInputs)*(*inData)[(iDataInBatch*nInputs)+iInput]* _hiddenGradients[iWgtMat][iDataInBatch*nOutputs+iOutput]*(*forwardWeightsUpdate)[(iOutput*nOutputOutputs)+iNext];
-                      hiddenWeightsUpdate[iWgtMat][(iOutput*nInputs) + iInput]  += (*inData)[(iInput * _nTrainDataRecords)+iDataInBatch]* _hiddenGradients[iWgtMat][(iOutput*_nTrainDataRecords) + iDataInBatch]*(*forwardWeightsUpdate)[iNext*nOutputs + iOutput];
+                      hiddenWeightsUpdate[iWgtMat][(iOutput*nInputs) + iInput]  += (1.0/nBatchSize)*(*inData)[(iInput * _nTrainDataRecords)+iDataInBatch]* _hiddenGradients[iWgtMat][(iOutput*_nTrainDataRecords) + iDataInBatch]*(*forwardWeightsUpdate)[iNext*nOutputs + iOutput];
                     }
                   }
                 }
@@ -1252,7 +1262,7 @@ bool nnet::backProp(size_t nBatchIndicator,
                   for(int iOutput = 0; iOutput < nOutputs; iOutput++){
                     for(int iNext = 0; iNext< nOutputOutputs; iNext++){
                       //hiddenBiasesUpdate[iWgtMat][iOutput] += (1.0/nInputs)*_hiddenGradients[iWgtMat][iDataInBatch*nOutputs+iOutput]*(*forwardWeightsUpdate)  [(iOutput*nOutputOutputs)+iNext];
-                      hiddenBiasesUpdate[iWgtMat][iOutput] += _hiddenGradients[iWgtMat][(iOutput * _nTrainDataRecords) + iDataInBatch]*(*forwardWeightsUpdate)  [(iNext *nOutputs) + iOutput];
+                      hiddenBiasesUpdate[iWgtMat][iOutput] += (1.0/nBatchSize)*_hiddenGradients[iWgtMat][(iOutput * _nTrainDataRecords) + iDataInBatch]*(*forwardWeightsUpdate)  [(iNext *nOutputs) + iOutput];
                     }
                   }
                 }

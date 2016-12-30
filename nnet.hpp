@@ -86,7 +86,8 @@ private:
   std::vector<double> _outputBiases;
   bool _weightsInitialised;
   
-  // Dropout during optimisation
+  // During optimisation
+  bool _shuffleEachEpoch;
   bool _doTestCost;
   bool _doDropout;
   double _inputDropoutRate;
@@ -127,6 +128,7 @@ private:
                               bool calcTrainGradients,
                               double nesterovAdj,
                               std::vector<std::vector<int> >& dropouts);
+  void shuffleTrainData();
   // Functions
 public:
   nnet();
@@ -157,7 +159,7 @@ public:
 
   // Preprocessing methods on Train Data
   void normTrainData(normDataType normType);
-  void shuffleTrainData();
+  void setShuffleTrainData(bool doShuffle);
   void pcaTrainData(size_t dimensions = 0);
   
  
@@ -185,6 +187,7 @@ public:
                    size_t momDecaySchedule,
                    double momFinal);
 
+  
   void initialiseWeights(initialiseType initialtype = INIT_CONST_TYPE, double param1 = 0.0);
   void setDropout(bool doDropout);
   bool backProp(size_t nBatchIndicator,
