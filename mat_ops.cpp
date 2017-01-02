@@ -97,7 +97,7 @@ void mat_ops::pcaProject(std::vector<double>& inMat, size_t nInMatCols, size_t n
   
   for(size_t iRow = 0; iRow < nCols; iRow++){
     for (size_t iCol = 0; iCol < nCols; iCol++){
-      gsl_matrix_set (eigenMatrix, iCol, iRow, eigenMat[(iCol * nRows) + iRow]);
+      gsl_matrix_set (eigenMatrix, iCol, iRow, eigenMat[(iCol * nCols) + iRow]);
     }
   }
   
