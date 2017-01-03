@@ -79,6 +79,8 @@ public:
   
   bool isPcaDone() const;
   
+  void transformDataset(const dataset& otherDataset);
+  
   void printData(size_t nRecords = 0);
   
   void printLabels(size_t nRecords = 0);

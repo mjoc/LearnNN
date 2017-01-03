@@ -404,23 +404,35 @@ void dataset::normFromParams(const normDataType normType, const std::vector<doub
 }
 
 void dataset::doPca(size_t nRetainedDimensions){
-  if(nRetainedDimensions < 1 || nRetainedDimensions > _nFields){
-    nRetainedDimensions = _nFields;
+  if(_normType != DATA_NORM_NONE){
+    std::cout << "Only do PCA on un-transformed data sets, giving up\n";
+  }else{
+    if(nRetainedDimensions < 1 || nRetainedDimensions > _nFields){
+      nRetainedDimensions = _nFields;
+    }
+    
+    if(_dataLoaded){
+      mat_ops::pca(_data, _nFields, nRetainedDimensions, _pcaEigenMat);
+    }
+    _nFields = nRetainedDimensions;
+    _nPcaDimensions = nRetainedDimensions;
+    _pcaDone = true;
   }
-  
-  if(_dataLoaded){
-    mat_ops::pca(_data, _nFields, nRetainedDimensions, _pcaEigenMat);
-  }
-  _nFields = nRetainedDimensions;
-  _nPcaDimensions = nRetainedDimensions;
-  _pcaDone = true;
 }
 
 void dataset::doPcaFromDataset(const dataset& otherDataset){
-  if(otherDataset.isPcaDone()){
+  bool allOk = true;
+  if(! otherDataset.isPcaDone()){
+    std::cout << "Other Dataset does not have PCA  \n";
+    allOk = false;
+  }
+  if(_normType != DATA_NORM_NONE){
+    std::cout << "Only do PCA on un-transformed data sets, giving up\n";
+    allOk = false;
+  }
+  if(allOk){
     doPcaProjection(otherDataset.getPcaMatrix(), otherDataset.nFields());
   }
-  
   return;
 }
 
@@ -456,7 +468,14 @@ std::vector<double> dataset::getPcaMatrix() const{
   }
 }
 
-
+void dataset::transformDataset(const dataset& otherDataset){
+  if(otherDataset.isPcaDone()){
+    doPcaProjection(otherDataset.getPcaMatrix(), otherDataset.nFields());
+  }
+  if(otherDataset.getNormType() != DATA_NORM_NONE){
+    normFromDataset(otherDataset);
+  }
+}
 void dataset::printData(size_t nRecords){
   if(_dataLoaded){
     if(nRecords == 0){

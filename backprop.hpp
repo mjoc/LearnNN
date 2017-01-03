@@ -10,7 +10,6 @@
 #define backprop_hpp
 
 #include <string>
-#include "weightfitter.hpp"
 #include "dataset.hpp"
 #include "nnet.hpp"
 #include "rng.hpp"
