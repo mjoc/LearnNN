@@ -1,1 +1,6 @@
 CXX_STD = CXX11
+PKG_CPPFLAGS=-I/opt/local/include
+PKG_LIBS=-L/opt/local/lib -lgsl -lgslcblas
+
+
+
