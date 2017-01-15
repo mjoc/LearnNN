@@ -5,28 +5,30 @@
 //  Created by Martin on 20/11/2016.
 //  Copyright © 2016 Martin. All rights reserved.
 //
-#include <iostream>
-#include <fstream>
 #include <vector>
+#include <string>
+#include <fstream>
 #include <gsl/gsl_cblas.h>
-#include "mat_ops.hpp"
 #include <assert.h>
 #include <gsl/gsl_statistics.h>
 #include <gsl/gsl_eigen.h>
 #include <gsl/gsl_blas.h>
+#include "mat_ops.hpp"
+#include "message.hpp"
+
 
 void mat_ops::matMul(size_t Arows, size_t Acols, std::vector<double>& A, size_t Bcols, std::vector<double>& B, std::vector<double>& C){
   double alpha = 1.0;
   double beta = 1.0;
   size_t ldA = Arows, ldB = Acols, ldC = Arows;
   if(A.size() != Arows*Acols){
-    std::cout << "***** A rows and columns misspecified\n";
+    msg::error(std::string("***** A rows and columns misspecified\n"));
   }
   if(B.size() != Acols*Bcols){
-    std::cout << "***** B rows and columns misspecified\n";
+    msg::error(std::string("***** B rows and columns misspecified\n"));
   }
   if(C.size() != Arows*Bcols){
-    std::cout << "***** C is of the wrong size\n";
+    msg::error(std::string("***** C is of the wrong size\n"));
   }
   
   cblas_dgemm(CblasColMajor, CblasNoTrans, CblasNoTrans,

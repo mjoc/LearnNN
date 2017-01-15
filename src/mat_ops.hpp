@@ -6,8 +6,8 @@
 //  Copyright © 2016 Martin. All rights reserved.
 //
 
-#ifndef mat_ops_hpp
-#define mat_ops_hpp
+#ifndef __MOC_mat_ops_hpp_
+#define __MOC_mat_ops_hpp_
 
 #include <gsl/gsl_matrix.h>
 

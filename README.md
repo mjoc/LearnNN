@@ -9,7 +9,7 @@
 * Using GSL for matrix stuff for now
 * Plan to create an R package for ease of use.
 * Plan to use STAN for the Bayesian stuff, when I figure it all out
-* Watch out, Tensorflow!
+
 
 
 On the short term stack....

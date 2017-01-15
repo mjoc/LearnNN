@@ -6,18 +6,19 @@
 //  Copyright © 2016 Martin. All rights reserved.
 //
 
-#include "dataset.hpp"
-#include "mat_ops.hpp"
 #include <fstream>
-#include <vector>
-#include <iostream>
 #include <sstream>
 #include <iomanip>
 #include <cmath>
+#include <string>
+#include "dataset.hpp"
+#include "mat_ops.hpp"
+#include "message.hpp"
+
 
 #define MIN_DATA_RANGE 1e-4
 
-dataset::dataset(char *dataFileName, char *labelsFileName, bool hasHeader, char delim){
+Dataset::Dataset(char *dataFileName, char *labelsFileName, bool hasHeader, char delim){
   bool allOk = true;
   _dataLoaded = false;
   _labelsLoaded = false;
@@ -25,7 +26,7 @@ dataset::dataset(char *dataFileName, char *labelsFileName, bool hasHeader, char 
   _nFields = 0;
   _nLabelFields = 0;
   _nInputFields = 0;
-  
+
   _normType = DATA_NORM_NONE;
   _pcaDone = false;
   _pcaEigenMatLoaded = false;
@@ -39,62 +40,66 @@ dataset::dataset(char *dataFileName, char *labelsFileName, bool hasHeader, char 
     _dataSource = std::string(dataFileName);
     _labelsSource = std::string(labelsFileName);
   }
-  
+
   _outputDir = "~/";
 }
 
-dataset::~dataset(){
+
+Dataset::~Dataset(){
 }
 
-void dataset::setOutputFolder(char *filename){
+
+void Dataset::setOutputFolder(char *filename){
   _outputDir = filename;
   return;
 }
 
-dataset::normDataType dataset::getNormType() const {
+Dataset::normDataType Dataset::getNormType() const {
   return _normType;
 }
 
-std::vector<double> dataset::getNormParam1() const {
+std::vector<double> Dataset::getNormParam1() const {
   return _normParam1;
 }
 
-std::vector<double> dataset::getNormParam2() const {
+std::vector<double> Dataset::getNormParam2() const {
   return _normParam2;
 }
 
 
-bool dataset::dataLoaded() const{
+bool Dataset::dataLoaded() const{
   return _dataLoaded;
 }
 
-bool dataset::labelsLoaded() const{
+bool Dataset::labelsLoaded() const{
   return _labelsLoaded;
 }
 
 
-bool dataset::loadDataFromFile(char *filename, bool hasHeader, char delim){
+bool Dataset::loadDataFromFile(char *filename, bool hasHeader, char delim){
+  std::ostringstream message;
   bool allOk = true;
   bool first = true;
   int nRecords = 0;
   size_t nDelims = 0;
-  
+
   std::vector<double> indata;
-  
+
   _labelsLoaded = false;
   _dataLoaded = false;
-  
+
   _nRecords = 0;
-  
+
   _normType = DATA_NORM_NONE;
   _pcaDone = false;
-  
+
   std::ifstream infile(filename, std::ios_base::in);
-  
+
   if (!infile.is_open()){
     allOk = false;
   }else{
-    std::cout << "Reading in data from file " << filename << std::endl;
+    message << "Reading in data from file " << filename << std::endl;
+    msg::info(message);
     _data.resize(0);
     if(hasHeader){
       std::string headerline;
@@ -103,7 +108,7 @@ bool dataset::loadDataFromFile(char *filename, bool hasHeader, char delim){
       first = false;
     }
     // http://stackoverflow.com/questions/18818777/c-program-for-reading-an-unknown-size-csv-file-filled-only-with-floats-with
-    
+
     for (std::string line; std::getline(infile, line); )
     {
       if(line.find_first_not_of(' ') == std::string::npos){
@@ -115,23 +120,25 @@ bool dataset::loadDataFromFile(char *filename, bool hasHeader, char delim){
           first = false;
         }else{
           if(nDelims != std::count(line.begin(), line.end(), delim)){
-            std::cout << "Problem with line " << nRecords << "; it has " << std::count(line.begin(), line.end(), delim) << " delimiters, expected " << nDelims << std::endl;
+            message << "Problem with line " << nRecords << "; it has " << std::count(line.begin(), line.end(), delim) << " delimiters, expected " << nDelims << std::endl;
+            msg::error(message);
             allOk = false;
           }
         }
-        
+
         std::replace(line.begin(), line.end(), delim, ' ');
         std::istringstream in(line);
-        
-        
+
+
         if(allOk){
           std::vector<double> rowValues = std::vector<double>(std::istream_iterator<double>(in), std::istream_iterator<double>());
           for (std::vector<double>::const_iterator it(rowValues.begin()), end(rowValues.end()); it != end; ++it) {
             indata.push_back(*it);
-            
+
           }
           if((indata.size()% (nDelims+1)) != 0 ){
-            std::cout << "Number of data is not an integer multiple of first line fields!" << std::endl;
+            message << "Number of data is not an integer multiple of first line fields!" << std::endl;
+            msg::error(message);
             allOk = false;
           }
         }else{
@@ -144,9 +151,9 @@ bool dataset::loadDataFromFile(char *filename, bool hasHeader, char delim){
     _nFields = nDelims + 1;
     _nInputFields = _nFields;
     _nRecords = nRecords;
-    
+
     _data.resize(indata.size());
-    
+
     for(size_t iCol = 0; iCol < _nFields; iCol++){
       for(size_t iRow = 0; iRow < _nRecords; iRow++){
          //Switching from row major to column major
@@ -154,37 +161,40 @@ bool dataset::loadDataFromFile(char *filename, bool hasHeader, char delim){
       }
     }
     _dataLoaded = true;
-    
-    
-    std::cout << "Read " << nRecords << " by " << nDelims + 1 << std::endl;
+
+    message << "Read " << nRecords << " by " << nDelims + 1 << std::endl;
+    msg::info(message);
   }
   return allOk;
 };
 
-bool dataset::loadLabelsFromFile(char *filename, bool hasHeader, char delim){
+bool Dataset::loadLabelsFromFile(char *filename, bool hasHeader, char delim){
+  std::ostringstream message;
   bool allOk = true;
   bool first = true;
   size_t nRecords = 0;
   size_t nFields = 0;
   size_t nDelims = 0;
   std::vector<double> indata;
-  
+
   _labelsLoaded = false;
   _labels.resize(0);
-  
+
   std::ifstream infile(filename, std::ios_base::in);
-  
+
   if(!_dataLoaded){
     allOk = false;
   }
-  
+
   if (!infile.is_open()){
-    std::cout << "Cannot open file, giving up!\n";
+    message << "Cannot open file, giving up!\n";
+    msg::error(message);
     allOk = false;
   }
-  
+
   if(allOk){
-    std::cout << "Reading in data from file " << filename << std::endl;
+    message << "Reading in data from file " << filename << std::endl;
+    msg::error(message);
     if(hasHeader){
       std::string headerline;
       std::getline(infile, headerline);
@@ -192,7 +202,7 @@ bool dataset::loadLabelsFromFile(char *filename, bool hasHeader, char delim){
       first = false;
     }
     // http://stackoverflow.com/questions/18818777/c-program-for-reading-an-unknown-size-csv-file-filled-only-with-floats-with
-    
+
     for (std::string line; std::getline(infile, line); )
     {
       if(line.find_first_not_of(' ') == std::string::npos){
@@ -204,14 +214,15 @@ bool dataset::loadLabelsFromFile(char *filename, bool hasHeader, char delim){
           first = false;
         }else{
           if(nDelims != std::count(line.begin(), line.end(), delim)){
-            std::cout << "Problem with line " << nRecords << "; it has " << std::count(line.begin(), line.end(), delim) << " delimiters, expected " << nDelims << std::endl;
+            message << "Problem with line " << nRecords << "; it has " << std::count(line.begin(), line.end(), delim) << " delimiters, expected " << nDelims << std::endl;
+            msg::error(message);
             allOk = false;
           }
         }
-        
+
         std::replace(line.begin(), line.end(), delim, ' ');
         std::istringstream in(line);
-        
+
         if(allOk){
           std::vector<double> rowValues = std::vector<double>(std::istream_iterator<double>(in), std::istream_iterator<double>());
           for (std::vector<double>::const_iterator it(rowValues.begin()), end(rowValues.end()); it != end; ++it) {
@@ -225,59 +236,63 @@ bool dataset::loadLabelsFromFile(char *filename, bool hasHeader, char delim){
   }
   if(allOk){
     if((indata.size()% (nDelims+1)) != 0 ){
-      std::cout << "Number of data is not an integer multiple of first line fields!" << std::endl;
+      message << "Number of data is not an integer multiple of first line fields!" << std::endl;
+      msg::error(message);
       allOk = false;
     }
     if(indata.size() != _nRecords * (nDelims+1)){
-      std::cout << "Expected " << _nRecords * (nDelims+1) << " Labels, got " << indata.size() << "!" << std::endl;
+      message << "Expected " << _nRecords * (nDelims+1) << " Labels, got " << indata.size() << "!" << std::endl;
+      msg::error(message);
       allOk = false;
     }
   }
-  
-  
+
+
   if(allOk){
     nFields = nDelims+1;
     _labels.resize(indata.size());
-    
+
     for(size_t iCol = 0; iCol < nFields; iCol++){
       for(size_t iRow = 0; iRow < _nRecords; iRow++){
         // Switching from row major to column major
         _labels[iCol*_nRecords + iRow] = indata[(iRow * nFields)+iCol];
       }
     }
-    
+
     _nLabelFields = nDelims + 1;
     _labelsLoaded = true;
-    
-    std::cout << "Read " << _labels.size() << " labels of " << nRecords << " by " << _nFields << std::endl;
+
+    message << "Read " << _labels.size() << " labels of " << nRecords << " by " << _nFields << std::endl;
+    msg::info(message);
   }
   return allOk;
 };
 
-size_t dataset::nRecords() const{
+size_t Dataset::nRecords() const{
   return _nRecords;
 }
 
-size_t dataset::nFields() const{
+size_t Dataset::nFields() const{
   return _nFields;
 }
 
-size_t dataset::nLabelFields() const{
+size_t Dataset::nLabelFields() const{
   return _nLabelFields;
 }
 
-std::vector<double> dataset::data(){
+std::vector<double> Dataset::data(){
   return _data;
 }
-std::vector<double> dataset::labels(){
+std::vector<double> Dataset::labels(){
   return _labels;
 }
 
-bool dataset::isPcaDone() const {
+bool Dataset::isPcaDone() const {
   return _pcaDone;
 }
 
-void dataset::analyseAndNorm(normDataType normType){
+void Dataset::analyseAndNorm(normDataType normType){
+  std::ostringstream message;
   _normParam1.resize(_nFields,0.0);
   _normParam2.resize(_nFields,0.0);
   double delta;
@@ -328,46 +343,55 @@ void dataset::analyseAndNorm(normDataType normType){
         _normType = DATA_RANGE_BOUND;
         break;
       default:
-        std::cout << "Confused in data normalisation function, doing nothing"<< std::endl;
+        message << "Confused in data normalisation function, doing nothing"<< std::endl;
+        msg::error(message);
         break;
     }
 
   }else{
     if(! _dataLoaded){
-      std::cout << "Data normalisation requested but no data loaded" << std::endl;
+      message << "Data normalisation requested but no data loaded" << std::endl;
+      msg::warn(message);
     }else{
       if(_normType != DATA_NORM_NONE){
-        std::cout << "Data normalisation already applied" << std::endl;
+        message << "Data normalisation already applied" << std::endl;
+        msg::warn(message);
       }
     }
   }
   return;
 }
 
-void dataset::normFromDataset(const dataset& otherDataset){
+void Dataset::normFromDataset(const Dataset& otherDataset){
+  std::ostringstream message;
   if(_normType== DATA_NORM_NONE){
     normFromParams(otherDataset.getNormType(), otherDataset.getNormParam1(), otherDataset.getNormParam2());
   }else{
-    std::cout <<"Already Normed some way so doing nothing!";
+    message <<"Already Normed some way so doing nothing!";
+    msg::warn(message);
   }
 }
 
 
-void dataset::normFromParams(const normDataType normType, const std::vector<double>& params1, const std::vector<double>& params2){
+void Dataset::normFromParams(const normDataType normType, const std::vector<double>& params1, const std::vector<double>& params2){
+  std::ostringstream message;
   bool canDo = true;
   if(! _dataLoaded){
-    std::cout << "No non train data loaded\n";
+    message << "No non train data loaded\n";
+    msg::warn(message);
     canDo = false;
   }
   if(normType == DATA_NORM_NONE){
-    std::cout << "Training data is not normed so cannot perform on other data\n";
+    message << "Training data is not normed so cannot perform on other data\n";
+    msg::error(message);
     canDo = false;
   }
   if(params1.size() != _nFields || params2.size() != _nFields){
-    std::cout << "Dimension mismatch between train data normalisation parameters and load data\n";
+    message << "Dimension mismatch between train data normalisation parameters and load data\n";
+    msg::error(message);
     canDo = false;
   }
-  
+
   if(canDo){
     switch (normType) {
       case DATA_STAN_NORM:
@@ -393,24 +417,24 @@ void dataset::normFromParams(const normDataType normType, const std::vector<doub
         _normType = DATA_RANGE_BOUND;
         break;
       default:
-        std::cout << "Confused in data normalisation function, doing nothing"<< std::endl;
+        message << "Confused in data normalisation function, doing nothing"<< std::endl;
+        msg::error(message);
         break;
     }
-    
   }
-  
   return;
-  
 }
 
-void dataset::doPca(size_t nRetainedDimensions){
+void Dataset::doPca(size_t nRetainedDimensions){
+  std::ostringstream message;
   if(_normType != DATA_NORM_NONE){
-    std::cout << "Only do PCA on un-transformed data sets, giving up\n";
+    message << "Only do PCA on un-transformed data sets, giving up\n";
+    msg::error(message);
   }else{
     if(nRetainedDimensions < 1 || nRetainedDimensions > _nFields){
       nRetainedDimensions = _nFields;
     }
-    
+
     if(_dataLoaded){
       mat_ops::pca(_data, _nFields, nRetainedDimensions, _pcaEigenMat);
     }
@@ -420,14 +444,17 @@ void dataset::doPca(size_t nRetainedDimensions){
   }
 }
 
-void dataset::doPcaFromDataset(const dataset& otherDataset){
+void Dataset::doPcaFromDataset(const Dataset& otherDataset){
+  std::ostringstream message;
   bool allOk = true;
   if(! otherDataset.isPcaDone()){
-    std::cout << "Other Dataset does not have PCA  \n";
+    message << "Other Dataset does not have PCA  \n";
+    msg::error(message);
     allOk = false;
   }
   if(_normType != DATA_NORM_NONE){
-    std::cout << "Only do PCA on un-transformed data sets, giving up\n";
+    message << "Only do PCA on un-transformed data sets, giving up\n";
+    msg::error(message);
     allOk = false;
   }
   if(allOk){
@@ -436,18 +463,21 @@ void dataset::doPcaFromDataset(const dataset& otherDataset){
   return;
 }
 
-void dataset::doPcaProjection(std::vector<double> pcaEigenMat, size_t nPcaDimension){
+void Dataset::doPcaProjection(std::vector<double> pcaEigenMat, size_t nPcaDimension){
+  std::ostringstream message;
   bool canDo = true;
   if(!_dataLoaded){
     canDo = false;
-    std::cout << "Can't do PCA as no data loaded\n";
+    message << "Can't do PCA as no data loaded\n";
+    msg::error(message);
   }
 
   if(_nRecords == 0){
     canDo = false;
-    std::cout << "Can't do PCA as no records found\n";
+    message << "Can't do PCA as no records found\n";
+    msg::error(message);
   }
-  
+
   if(canDo){
     mat_ops::pcaProject(_data, _nFields ,nPcaDimension, pcaEigenMat);
     _nFields = nPcaDimension;
@@ -459,16 +489,18 @@ void dataset::doPcaProjection(std::vector<double> pcaEigenMat, size_t nPcaDimens
   return;
 }
 
-std::vector<double> dataset::getPcaMatrix() const{
+std::vector<double> Dataset::getPcaMatrix() const{
+  std::ostringstream message;
   if(_pcaDone){
     return _pcaEigenMat;
   }else{
-    std::cout << "No PCA matrix available!\n";
+    message << "No PCA matrix available!\n";
+    msg::error(message);
     return std::vector<double>();
   }
 }
 
-void dataset::transformDataset(const dataset& otherDataset){
+void Dataset::transformDataset(const Dataset& otherDataset){
   if(otherDataset.isPcaDone()){
     doPcaProjection(otherDataset.getPcaMatrix(), otherDataset.nFields());
   }
@@ -476,57 +508,129 @@ void dataset::transformDataset(const dataset& otherDataset){
     normFromDataset(otherDataset);
   }
 }
-void dataset::printData(size_t nRecords){
+void Dataset::printData(size_t nRecords){
+  std::ostringstream message;
   if(_dataLoaded){
     if(nRecords == 0){
       nRecords = _nRecords;
     }else{
       nRecords = std::min(nRecords, _nRecords);
     }
-    std::cout << "Printing Data" << std::endl;
+    message << "Printing Data" << std::endl;
+    msg::info(message);
     for(int iRow = 0; iRow < nRecords; iRow++){
-      std::cout << " Record " << iRow + 1 << ": \t";
+      message << " Record " << iRow + 1 << ": \t";
       for(int iCol = 0; iCol < _nFields; iCol++){
-        std::cout << std::fixed;
-        std::cout << std::setprecision(3) << _data[(iCol* _nRecords)+iRow] << " | ";
+        message << std::fixed;
+        message << std::setprecision(3) << _data[(iCol* _nRecords)+iRow] << " | ";
       }
-      std::cout << std::endl;
+      message << std::endl;
+      msg::info(message);
     }
   }else{
-    std::cout << "No data loaded\n";
+    message << "No data loaded\n";
+    msg::error(message);
   }
 }
 
 
-void dataset::printLabels(size_t nRecords){
+void Dataset::printLabels(size_t nRecords){
+  std::ostringstream message;
   if(_dataLoaded){
     if(nRecords == 0){
       nRecords = _nRecords;
     }else{
       nRecords = std::min(nRecords, _nRecords);
     }
-    std::cout << "Printing Labels" << std::endl;
+    message << "Printing Labels" << std::endl;
+    msg::info(message);
     for(int iRow = 0; iRow < nRecords; iRow++){
-      std::cout << "Record " << iRow + 1 << ": ";
+      message << "Record " << iRow + 1 << ": ";
       for(int iCol = 0; iCol < _nLabelFields; iCol++){
-        std::cout << _labels[(iCol* _nRecords)+iRow] << " | ";
+        message << _labels[(iCol* _nRecords)+iRow] << " | ";
       }
-      std::cout << std::endl;
+      message << std::endl;
     }
+    msg::info(message);
   }else{
-    std::cout << "No labels Loaded\n";
+    message << "No labels Loaded\n";
+    msg::error(message);
   }
 }
 
-void dataset::writeData(){
+void Dataset::writeData(){
+  std::ostringstream message;
   if(_dataLoaded){
     std::ostringstream oss;
     oss << _outputDir << "data.csv";
-    std::cout << "Wrirting data to " << oss.str() << std::endl;
+    message << "Writing data to " << oss.str() << std::endl;
+    msg::info(message);
     mat_ops::writeMatrix(oss.str(), _data,_nRecords,_nFields);
   }else{
-    std::cout << "No data loaded\n";
+    msg::error(std::string("No data loaded\n"));
   }
   return;
+}
+
+
+ Dataset::Dataset(Rcpp::NumericMatrix data, Rcpp::NumericMatrix labels){
+ _outputDir = "~/";
+ bool allOk = true;
+ _dataLoaded = false;
+ _labelsLoaded = false;
+ _nRecords = 0;
+ _nFields = 0;
+ _nLabelFields = 0;
+ _nInputFields = 0;
+ 
+ _normType = DATA_NORM_NONE;
+ _pcaDone = false;
+ _pcaEigenMatLoaded = false;
+ _nPcaDimensions = 0;
+ 
+ if(allOk){
+ _nFields = data.ncol();
+ _nInputFields = _nFields;
+ _nRecords = data.nrow();
+ 
+ _data.resize(_nInputFields*_nRecords);
+ 
+ for(int iCol = 0; iCol < _nFields; iCol++){
+ for(int iRow = 0; iRow < _nRecords; iRow++){
+ //Switching from row major to column major
+ _data[iCol*_nRecords + iRow] = data(iRow,iCol);
+ }
+ }
+ 
+ if(labels.nrow() > 0){
+ _nLabelFields = labels.ncol();
+ _labels.resize(_nRecords*_nLabelFields);
+ 
+ for(int iCol = 0; iCol < _nFields; iCol++){
+ for(int iRow = 0; iRow < _nRecords; iRow++){
+ _labels[iCol*_nRecords + iRow] = labels(iRow,iCol);
+ }
+ }
+ _labelsLoaded = true;
+ }else{
+ _labels.resize(0);
+ }
+ _dataLoaded = true;
+ _dataSource = std::string("R");
+ _labelsSource = std::string("R");
+ }
+ }
+
+
+RCPP_MODULE(af_dataset) {
+
+  Rcpp::class_<Dataset>("Dataset")
+
+  .constructor<Rcpp::NumericMatrix , Rcpp::NumericMatrix >("data and labels")
+
+  .method("print", &Dataset::printData, "Print the data")
+  .method("nrow",&Dataset::nRecords, "Number of records in the dataset")
+  .method("ncol",&Dataset::nFields, "Number of fields in the dataset")
+  ;
 }
 
