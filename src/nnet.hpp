@@ -4,7 +4,7 @@
 #include "dataset.hpp"
 #include <vector>
 
-class nnet{
+class Nnet{
   friend class backpropper;
 public:
 
@@ -23,11 +23,6 @@ public:
     SMAX_OUT_TYPE
   };
 
-  enum lossType
-  {
-    MSE_LOSS_TYPE,
-    CROSS_ENT_TYPE
-  };
 
 
 private:
@@ -42,7 +37,7 @@ private:
   std::vector<double> _outputBiases;
   size_t _nOutputUnits;
   outputType _outputType;
-  lossType _lossType;
+
 
   // Things to do with non- Train Data
   bool _dataLabelsLoaded;
@@ -64,15 +59,19 @@ private:
   // Functions
   void flowDataThroughNetwork(std::vector<std::vector<double> >& dataflowStages,
                               std::vector<double>& dataflowMatrix);
-  double calcCost(std::vector<double> actual, std::vector<double> fitted ,size_t nRecords, size_t nOutputUnits);
-  double calcAccuracy(std::vector<double> actual, std::vector<double> fitted ,size_t nRecords, size_t nOutputUnits);
   // Wrting out to file
   std::string _outputDir;
 
 public:
-  nnet();
-  nnet(Dataset initialData);
-  ~nnet();
+  Nnet();
+  Nnet(Dataset initialData);
+//  Nnet(std::vector<int> networkgeometry,
+//       std::string hiddenUnitActivation = std::string("linear"),
+//       std::string outputUnitActivation = std::string("linear"));
+  Nnet(Rcpp::IntegerVector networkgeometry,
+      Rcpp::String hiddenUnitActivation,
+      Rcpp::String outputUnitActivation);
+  ~Nnet();
 
 
 
@@ -88,11 +87,15 @@ public:
 
   // Set Network Details
   void setInputSize(size_t nInputUnits);
+  size_t getInputSize();
   void setOutputSize(size_t nOutputUnits);
-  void setHiddenLayerSizes(const std::vector<int>& layerSizes);
-  void setActivationType(activationType activationType);
-  void setOutputType(outputType outputType);
-  void setLossType(lossType lossType);
+  size_t getOutputSize();
+  void setHiddenLayerSizes(std::vector<int> layerSizes);
+  std::vector<int>  getHiddenLayerSizes();
+  void setActivationType(std::string activationType);
+  std::string getActivationType();
+  void setOutputType(std::string outputType);
+  std::string getOutputType();
 
   bool setDataAndLabels(Dataset dataToClamp);
 
@@ -103,8 +106,7 @@ public:
   bool numericLabels();
   bool classLabels();
 
-  double getCost();
-  double getAccuracy();
+
 
   // Write to file
   void setOutputFolder(char *filename);

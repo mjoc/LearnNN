@@ -14,12 +14,12 @@
 
 // http://cs231n.github.io/neural-networks-3/
 
-nnet::nnet(){
+Nnet::Nnet(){
   _nOutputUnits = 0;
   _nInputUnits = 0;
-  _outputType = nnet::LIN_OUT_TYPE;
-  _lossType = nnet::MSE_LOSS_TYPE;
-  _activationType = nnet::LIN_ACT_TYPE;
+  _outputType = Nnet::LIN_OUT_TYPE;
+
+  _activationType = Nnet::LIN_ACT_TYPE;
 
   _dataLabelsLoaded = false;
   _dataLoaded = false;
@@ -28,12 +28,11 @@ nnet::nnet(){
   _outputDir = "~/";
 };
 
-nnet::nnet(Dataset initialData){
+Nnet::Nnet(Dataset initialData){
   _nOutputUnits = 0;
   _nInputUnits = 0;
-  _outputType = nnet::LIN_OUT_TYPE;
-  _lossType = nnet::MSE_LOSS_TYPE;
-  _activationType = nnet::LIN_ACT_TYPE;
+  _outputType = Nnet::LIN_OUT_TYPE;
+  _activationType = Nnet::LIN_ACT_TYPE;
 
   _dataLabelsLoaded = false;
   _dataLoaded = false;
@@ -41,14 +40,14 @@ nnet::nnet(Dataset initialData){
 
   if(initialData.dataLoaded()){
     _feedForwardValues.resize(1);
-    _feedForwardValues[0] = initialData.data();
+    _feedForwardValues[0] = *initialData.data();
     _nInputUnits = initialData.nFields();
     _nDataRecords = initialData.nRecords();
     _dataLoaded = true;
 
 
     if(initialData.labelsLoaded()){
-      _dataLabels = initialData.labels();
+      _dataLabels = *initialData.labels();
       _nOutputUnits = initialData.nLabelFields();
       _dataLabelsLoaded = true;
 
@@ -62,10 +61,18 @@ nnet::nnet(Dataset initialData){
 };
 
 
-nnet::~nnet(){
+Nnet::~Nnet(){
 };
 
-void nnet::setHiddenLayerSizes(const std::vector<int>& layerSizes){
+void Nnet::setInputSize(size_t nInputUnits){
+  _nInputUnits = nInputUnits;
+}
+
+size_t Nnet::getInputSize(){
+  return _nInputUnits;
+}
+
+void Nnet::setHiddenLayerSizes(std::vector<int> layerSizes){
   _hiddenLayerSizes.resize(0);
   for(std::vector<int>::const_iterator it = layerSizes.begin(); it != layerSizes.end(); ++it) {
     _hiddenLayerSizes.push_back(*it);
@@ -74,37 +81,92 @@ void nnet::setHiddenLayerSizes(const std::vector<int>& layerSizes){
   return;
 }
 
-void nnet::setActivationType(activationType activationType){
-  _activationType = activationType;
+std::vector<int> Nnet::getHiddenLayerSizes(){
+  return _hiddenLayerSizes;
+}
+
+void Nnet::setActivationType(std::string activationType){
+  bool valid = false;
+  if(activationType == "linear"){
+    valid = true;
+    _activationType = Nnet::LIN_ACT_TYPE;
+  }
+  if(activationType == "tanh"){
+    valid = true;
+    _activationType = Nnet::TANH_ACT_TYPE;
+  }
+  if(activationType == "relu"){
+    valid = true;
+    _activationType = Nnet::RELU_ACT_TYPE;
+  }
+  if(!valid){
+    msg::error(std::string("Invalid Hidden Unit Activation, only 'linear' or 'tanh' or 'relu'!\n"));
+  }
   return;
 }
 
-void nnet::setOutputType(outputType outputType){
-  _outputType = outputType;
+std::string Nnet::getActivationType(){
+  std::string returnValue;
+  msg::error(std::string("here\n"));
+  switch (_activationType){
+  case LIN_ACT_TYPE:
+    returnValue = "linear";
+    break;
+  case TANH_ACT_TYPE:
+    returnValue = "tanh";
+    break;
+  case RELU_ACT_TYPE:
+    returnValue = "relu";
+    break;
+  }
+  return returnValue;
+}
+
+void Nnet::setOutputType(std::string outputType){
+  bool valid = false;
+  if(outputType == "linear"){
+    valid = true;
+    _outputType = Nnet::LIN_OUT_TYPE;
+  }
+  if(outputType == "softmax"){
+    valid = true;
+    _outputType = Nnet::SMAX_OUT_TYPE;
+  }
+  if(!valid){
+    msg::error(std::string("Invalid Output Unit Type, only 'linear' or 'softmax'!\n"));
+  }
   return;
 }
 
-void nnet::setLossType(lossType lossType){
-  _lossType = lossType;
-  return;
+std::string Nnet::getOutputType(){
+  std::string returnValue;
+  switch (_outputType){
+  case Nnet::LIN_OUT_TYPE:
+    returnValue = "linear";
+    break;
+  case SMAX_OUT_TYPE:
+    returnValue = "softmax";
+    break;
+  }
+  return returnValue;
 }
 
-void nnet::setOutputFolder(char *filename){
+void Nnet::setOutputFolder(char *filename){
   _outputDir = filename;
   return;
 }
 
 
-bool nnet::dataLoaded(){
+bool Nnet::dataLoaded(){
   return _dataLoaded;
 }
 
 
-bool nnet::dataAndLabelsLoaded(){
+bool Nnet::dataAndLabelsLoaded(){
   return _dataLoaded && _dataLabelsLoaded;
 }
 
-bool nnet::setDataAndLabels(Dataset dataToClamp){
+bool Nnet::setDataAndLabels(Dataset dataToClamp){
   bool allOk = true;
 
   if(!dataToClamp.dataLoaded()){
@@ -121,12 +183,12 @@ bool nnet::setDataAndLabels(Dataset dataToClamp){
   }
   if(allOk){
     _feedForwardValues.resize(1);
-    _feedForwardValues[0] = dataToClamp.data();
+    _feedForwardValues[0] = *dataToClamp.data();
     _nInputUnits = dataToClamp.nFields();
     _nDataRecords = dataToClamp.nRecords();
     _dataLoaded = true;
 
-    _dataLabels = dataToClamp.labels();
+    _dataLabels = *dataToClamp.labels();
     _nOutputUnits = dataToClamp.nLabelFields();
     _dataLabelsLoaded = true;
 
@@ -134,9 +196,9 @@ bool nnet::setDataAndLabels(Dataset dataToClamp){
   return allOk;
 }
 
-void nnet::activateUnits(std::vector<double>& values){
+void Nnet::activateUnits(std::vector<double>& values){
   switch (_activationType){
-    case nnet::TANH_ACT_TYPE:
+    case Nnet::TANH_ACT_TYPE:
       for (int i= 0; i < values.size(); i++) {
 
         values[i] =  tanh(values[i]);
@@ -155,9 +217,9 @@ void nnet::activateUnits(std::vector<double>& values){
 };
 
 
-void nnet::activateOutput(std::vector<double>& values){
+void Nnet::activateOutput(std::vector<double>& values){
   switch (_outputType){
-    case nnet::LIN_OUT_TYPE:
+    case Nnet::LIN_OUT_TYPE:
       // do nothing
       break;
     case SMAX_OUT_TYPE:
@@ -196,74 +258,9 @@ void nnet::activateOutput(std::vector<double>& values){
 
 }
 
-double nnet::getCost(){
-  return calcCost(_dataLabels,_generatedLabels,_nDataRecords,_nOutputUnits);
-}
-
-double nnet::getAccuracy(){
-  return calcAccuracy(_dataLabels,_generatedLabels,_nDataRecords,_nOutputUnits);
-}
 
 
-
-double nnet::calcCost(std::vector<double> actual, std::vector<double> fitted ,size_t nRecords, size_t nOutputUnits){
-
-  double cost = 0.0;
-  switch (_lossType){
-    case nnet::MSE_LOSS_TYPE:
-      cost = 0.0;
-      for(int iRecord = 0; iRecord < nRecords; ++iRecord){
-        for(int iUnit = 0; iUnit < nOutputUnits; ++iUnit){
-          cost += pow(fitted[(iUnit*nRecords)+iRecord] - actual[(iUnit*nRecords)+iRecord],2.0)/nRecords;
-        }
-      }
-
-      break;
-    case  nnet::CROSS_ENT_TYPE:
-      cost = 0.0;
-      for(int iRecord = 0; iRecord < nRecords; ++iRecord){
-        for(int iUnit = 0; iUnit < nOutputUnits; ++iUnit){
-          if(actual[(iUnit*nRecords)+iRecord] > 0.5){
-            cost -= log( fitted[(iUnit*nRecords)+iRecord]);
-          }
-        }
-      }
-  }
-  return cost;
-}
-
-double nnet::calcAccuracy(std::vector<double> actual, std::vector<double> fitted ,size_t nRecords, size_t nOutputUnits){
-  double accuracy = 0.0;
-  double maxProb = 0.0;
-  bool correct = false;
-  for(int iRecord = 0; iRecord < nRecords; ++iRecord){
-    for(int iUnit = 0; iUnit < nOutputUnits; ++iUnit){
-      if(iUnit == 0){
-        maxProb = fitted[(iUnit*nRecords)+iRecord];
-        if(actual[(iUnit*nRecords)+iRecord] > 0.5){
-          correct = true;
-        }else{
-          correct = false;
-        }
-      }else{
-        if(fitted[(iUnit*nRecords)+iRecord] > maxProb){
-          maxProb = fitted[(iUnit*nRecords)+iRecord];
-          if(actual[(iUnit*nRecords)+iRecord] > 0.5){
-            correct = true;
-          }else{
-            correct = false;
-          }
-        }
-      }
-
-    }
-    if(correct){accuracy += 1.0;}
-  }
-  accuracy /= nRecords;
-  return accuracy;
-}
-
-void nnet::initialiseWeights(){
+void Nnet::initialiseWeights(){
   size_t nCurrentInputWidth = _nInputUnits;
 
   // std::cout << "Initialising weights" << std::endl;
@@ -287,7 +284,7 @@ void nnet::initialiseWeights(){
   return;
 }
 
-void nnet::flowDataThroughNetwork(std::vector<std::vector<double> >& dataflowStages,
+void Nnet::flowDataThroughNetwork(std::vector<std::vector<double> >& dataflowStages,
                                          std::vector<double>& dataflowMatrix){
   size_t nInputRows, nInputCols, nWeightsCols;
 
@@ -343,10 +340,7 @@ void nnet::flowDataThroughNetwork(std::vector<std::vector<double> >& dataflowSta
   return;
 }
 
-
-
-
-void nnet::feedForward(){
+void Nnet::feedForward(){
   std::vector<double> tempMatrixForLabels;
   bool allOk = true;
 
@@ -375,7 +369,7 @@ void nnet::feedForward(){
   return;
 }
 
-//bool nnet::loadDataFromFile(char *filename, bool hasHeader, char delim){
+//bool Nnet::loadDataFromFile(char *filename, bool hasHeader, char delim){
 //  bool allOk = true;
 //  bool first = true;
 //  int nRecords = 0;
@@ -386,7 +380,7 @@ void nnet::feedForward(){
 //  _dataLoaded = false;
 //
 //  _nDataRecords = 0;
-//  _trainDataNormType = nnet::DATA_NORM_NONE;
+//  _trainDataNormType = Nnet::DATA_NORM_NONE;
 //  _dataPCA = false;
 //
 //  std::ifstream infile(filename, std::ios_base::in);
@@ -460,7 +454,7 @@ void nnet::feedForward(){
 //  return allOk;
 //};
 //
-//bool nnet::loadNonTrainDataLabelsFromFile(char *filename, bool hasHeader, char delim){
+//bool Nnet::loadNonTrainDataLabelsFromFile(char *filename, bool hasHeader, char delim){
 //  bool allOk = true;
 //  bool first = true;
 //  int nRecords = 0;
@@ -544,7 +538,7 @@ void nnet::feedForward(){
 //  return allOk;
 //};
 
-void nnet::writeWeights(){
+void Nnet::writeWeights(){
   size_t nRows = 0, nCols = 0;
   nRows = _nInputUnits;
   for(int i = 0; i < _hiddenWeights.size(); i++){
@@ -569,7 +563,7 @@ void nnet::writeWeights(){
   return;
 }
 
-void nnet::writeFeedForwardValues(){
+void Nnet::writeFeedForwardValues(){
   size_t nCols = 0;
 
   for(int i = 0; i < _feedForwardValues.size(); i++){
@@ -587,7 +581,7 @@ void nnet::writeFeedForwardValues(){
   return;
 }
 
-void nnet::writeOutputUnitValues(){
+void Nnet::writeOutputUnitValues(){
   std::ostringstream oss;
   if(_labelsGenerated){
     oss << _outputDir << "outvalues.csv";
@@ -599,9 +593,9 @@ void nnet::writeOutputUnitValues(){
 }
 
 
-void nnet::printUnitType(){
+void Nnet::printUnitType(){
   switch (_activationType){
-    case nnet::TANH_ACT_TYPE:
+    case Nnet::TANH_ACT_TYPE:
       msg::info(std::string("Unit: TANH\n"));
       break;
     case LIN_ACT_TYPE:
@@ -614,9 +608,9 @@ void nnet::printUnitType(){
 
 }
 
-void nnet::printOutputType(){
+void Nnet::printOutputType(){
   switch (_outputType){
-    case nnet::LIN_OUT_TYPE:
+    case Nnet::LIN_OUT_TYPE:
       msg::info(std::string("Output: LINEAR\n"));
       break;
     case SMAX_OUT_TYPE:
@@ -626,7 +620,7 @@ void nnet::printOutputType(){
 
 }
 
-void nnet::printGeometry(){
+void Nnet::printGeometry(){
   std::ostringstream message;
   msg::info(std::string("### Geometry ###\n"));
   message << "Input units: " << _nInputUnits << std::endl;
@@ -646,7 +640,7 @@ void nnet::printGeometry(){
 
 
 
-void nnet::printWeights(int iWeightsIndex){
+void Nnet::printWeights(int iWeightsIndex){
   std::ostringstream message;
   size_t nRows = 0;
   size_t nCols = 0;
@@ -693,7 +687,7 @@ void nnet::printWeights(int iWeightsIndex){
   }
 }
 
-void nnet::printOutputWeights(){
+void Nnet::printOutputWeights(){
   std::ostringstream message;
   size_t nRows = 0;
   size_t nCols = 0;
@@ -733,7 +727,7 @@ void nnet::printOutputWeights(){
 
 
 
-void nnet::printOutputUnitValues(size_t nRecords){
+void Nnet::printOutputUnitValues(size_t nRecords){
   std::ostringstream message;
   msg::info(std::string("Printing the Output Unit Values\n"));
   if(_labelsGenerated){
@@ -758,7 +752,7 @@ void nnet::printOutputUnitValues(size_t nRecords){
 }
 
 /* FIX THIS TO COLUMN MAJOR */
-void nnet::printFeedForwardValues(int iIndex){
+void Nnet::printFeedForwardValues(int iIndex){
   std::ostringstream message;
   size_t nRows = 0;
   size_t nCols = 0;
@@ -789,5 +783,140 @@ void nnet::printFeedForwardValues(int iIndex){
     msg::error(std::string("Invalid FF index!\n"));
   }
 }
+
+Nnet::Nnet(Rcpp::IntegerVector networkgeometry,
+     Rcpp::String hiddenUnitActivation,
+     Rcpp::String outputUnitActivation){
+  std::ostringstream message;
+  bool geometryValid = true;
+  size_t nInputSize, nOutputSize;
+  std::vector<int> hiddenLayerSizes;
+
+  //// DEFAULTS ////
+  _nOutputUnits = 0;
+  _nInputUnits = 0;
+  _outputType = Nnet::LIN_OUT_TYPE;
+  _activationType = Nnet::LIN_ACT_TYPE;
+
+
+  _dataLoaded = false;
+  _dataLabelsLoaded = false;
+  _nDataRecords = 0;
+
+  _outputDir = "~/";
+  //// END DEFAULTS ////
+
+  bool activationTypeValid = false;
+  if(hiddenUnitActivation == "linear"){
+    activationTypeValid = true;
+    _activationType = Nnet::LIN_ACT_TYPE;
+  }
+  if(hiddenUnitActivation == "tanh"){
+    activationTypeValid = true;
+    _activationType = Nnet::TANH_ACT_TYPE;
+  }
+  if(hiddenUnitActivation == "relu"){
+    activationTypeValid = true;
+    _activationType = Nnet::RELU_ACT_TYPE;
+  }
+  if(!activationTypeValid){
+    msg::error(std::string("Invalid Hidden Unit Activation, only 'linear' or 'tanh' or 'relu'!\n"));
+  }
+
+  bool outputTypeValid = false;
+  if(outputUnitActivation == "linear"){
+    outputTypeValid = true;
+    _outputType = Nnet::LIN_OUT_TYPE;
+  }
+  if(outputUnitActivation == "softmax"){
+    outputTypeValid = true;
+    _outputType = Nnet::SMAX_OUT_TYPE;
+  }
+  if(!outputTypeValid){
+    msg::error(std::string("Invalid Output Unit Type, only 'linear' or 'softmax'!\n"));
+  }
+
+  size_t nLayers = networkgeometry.length();
+  if (nLayers < 3){
+    msg::error(std::string("Network Geometry Size Vector is of size 1, needs to include at least input and output sizes!\n"));
+    geometryValid = false;
+  }else{
+    nInputSize = networkgeometry[0];
+    nOutputSize = networkgeometry[networkgeometry.length()-1];
+
+    message << "Input size " << nInputSize << " output size " << nOutputSize << std::endl;
+    msg::info(message);
+
+    if(nInputSize < 1){
+      msg::error(std::string("Number of Input Units needs to be >0\n"));
+      geometryValid = false;
+    }
+    if(nInputSize < 1){
+      msg::error(std::string("Number of Output Units needs to be >0\n"));
+      geometryValid = false;
+    }
+    hiddenLayerSizes.resize(0);
+    for(size_t iHidden = 1; iHidden < networkgeometry.length()-2; iHidden++){
+      hiddenLayerSizes.push_back(networkgeometry[iHidden]);
+      if(networkgeometry[iHidden] < 1){
+        geometryValid = false;
+        msg::error(std::string("Network Geometry Size Vector contains 0!\n"));
+        break;
+      }
+    }
+  }
+  if(geometryValid){
+    _nInputUnits = nInputSize;
+    _nOutputUnits = nOutputSize;
+    _hiddenLayerSizes.resize(0);
+    for(std::vector<int>::const_iterator it = hiddenLayerSizes.begin(); it != hiddenLayerSizes.end(); ++it) {
+      _hiddenLayerSizes.push_back(*it);
+    }
+    size_t nCurrentInputWidth = _nInputUnits;
+
+    // std::cout << "Initialising weights" << std::endl;
+    _hiddenWeights.resize(0);
+    _hiddenBiases.resize(0);
+
+    if(_hiddenLayerSizes.size() > 0){
+      for(int i = 0 ; i < _hiddenLayerSizes.size(); i++) {
+        _hiddenWeights.resize(i+1);
+        _hiddenWeights[i].resize(nCurrentInputWidth*_hiddenLayerSizes[i], 0);
+        _hiddenBiases.resize(i+1);
+        _hiddenBiases[i].resize(_hiddenLayerSizes[i], 0);
+        nCurrentInputWidth = _hiddenLayerSizes[i];
+      }
+    }
+
+    if(_nOutputUnits > 0){
+      _outputWeights.resize(nCurrentInputWidth * _nOutputUnits, 0);
+      _outputBiases.resize(_nOutputUnits, 0);
+    }
+
+  }
+  if((!geometryValid) | (!activationTypeValid) | (!outputTypeValid)){
+    msg::error(std::string("There were problems with Network Specifications\n"));
+    msg::error(std::string("Check the Activation Type, Output Type and Geometry\n"));
+  }
+}
+
+
+
+RCPP_MODULE(af_nnet) {
+
+  Rcpp::class_<Nnet>("Nnet")
+
+  .constructor<Rcpp::IntegerVector , Rcpp::String, Rcpp::String >("net details")
+
+  .method("printGeom", &Nnet::printGeometry, "Print the data")
+  .property("HiddenLayers",&Nnet::getHiddenLayerSizes, &Nnet::setHiddenLayerSizes, "Vector of Hidden layer sizes")
+  .property("actType", &Nnet::getActivationType, &Nnet::setActivationType,"Hidden layer activation type")
+  .property("outType",&Nnet::getOutputType , &Nnet::setOutputType, "Output Unit Type")
+
+
+
+  ;
+}
+
 
 

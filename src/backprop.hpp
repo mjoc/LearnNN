@@ -22,9 +22,14 @@ public:
     INIT_GAUSS_TYPE,
     INIT_UNIFORM_TYPE
   };
+  enum lossType
+  {
+    MSE_LOSS_TYPE,
+    CROSS_ENT_TYPE
+  };
 
 private:
-  nnet *_net;
+  Nnet *_net;
   rng *_rng;
   std::string _outputDir;
   size_t _epochPrintSchedule;
@@ -40,6 +45,9 @@ private:
   double _biasLearnRate;
   // Number of epochs
   size_t _nEpoch;
+
+  lossType _lossType;
+
 
   bool _doTestCost;
   Dataset *_testdata;
@@ -85,12 +93,16 @@ private:
                               double nesterovAdj,
                               std::vector<std::vector<int> >& dropouts);
 
+
 public:
-  backpropper(nnet *net);
+  backpropper(Nnet *net);
   ~backpropper();
 
   void setOutputFolder(char *filename);
   void setEpochPrintSchedule(size_t schedule);
+
+  void setLossType(std::string lossType);
+  std::string getLossType();
 
   bool setTestData(Dataset *testdata);
   void doTestCost(bool doTestCost = true);
@@ -129,7 +141,12 @@ public:
                           double wgtLearnRate,
                           double biasLearnRate,
                           size_t nEpoch);
-  bool fitWeights(nnet netToFit);
+  bool fitWeights(Nnet netToFit);
+
+  double calcAccuracy(bool testdata = false);
+  // std::vector<double> actual, std::vector<double> fitted ,size_t nRecords, size_t nOutputUnits
+  double calcCost(bool testdata = false);
+  // std::vector<double> actual, std::vector<double> fitted ,size_t nRecords, size_t nOutputUnits
 
   void printGradients(int iLayer);
   void printTrainData(size_t nRecords = 0);

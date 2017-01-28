@@ -15,11 +15,12 @@
 
 #define BIAS_START 0.0
 
-backpropper::backpropper(nnet *net){
+backpropper::backpropper(Nnet *net){
   _net = net;
   _rng = new rng;
   _outputDir = "~/";
   _epochPrintSchedule = 1;
+  _lossType = MSE_LOSS_TYPE;
 
   _shuffleEachEpoch = true;
   _doDropout = false;
@@ -61,6 +62,38 @@ void backpropper::setEpochPrintSchedule(size_t schedule){
   return;
 }
 
+void backpropper::setLossType(std::string lossType){
+  std::ostringstream message;
+  bool valid = false;
+  if(lossType == std::string("mse")){
+    valid = true;
+    _lossType = MSE_LOSS_TYPE;
+  }
+  if(lossType == "tanh"){
+    valid = true;
+    _lossType = CROSS_ENT_TYPE;
+  }
+  if(!valid){
+    msg::error(std::string("Invalid Loss Type, only 'mse' or 'xent'!\n"));
+  }
+  return;
+}
+
+std::string backpropper::getLossType(){
+  std::string returnValue;
+  switch (_lossType){
+  case MSE_LOSS_TYPE:
+    returnValue = std::string("mse");
+    break;
+  case CROSS_ENT_TYPE:
+    returnValue = std::string("xent");
+    break;
+  }
+  return returnValue;
+}
+
+
+
 bool backpropper::setTestData(Dataset *testdata){
   bool allOk = true;
   if(testdata->nRecords() == 0){
@@ -73,7 +106,7 @@ bool backpropper::setTestData(Dataset *testdata){
     _testdataLoaded = true;
     _testdata = testdata;
     _testdataFeedForwardValues.resize(1);
-    _testdataFeedForwardValues[0] = _testdata->data();
+    _testdataFeedForwardValues[0] = *_testdata->data();
   }else{
     allOk = false;
   }
@@ -112,9 +145,9 @@ void backpropper::setMomentum(bool doMomentum,
 
 void backpropper::initialiseWeights(initialiseType initialtype, double param1){
   std::ostringstream message;
-  
+
   size_t nCurrentInputWidth = _net->_nInputUnits;
-  
+
 
   // std::cout << "Initialising weights" << std::endl;
   _net->_hiddenWeights.resize(0);
@@ -256,19 +289,19 @@ void backpropper::activateUnitsAndCalcGradients(std::vector<double>& values,
     msg::error(message);
   }
   switch (_net->_activationType){
-    case nnet::TANH_ACT_TYPE:
+    case Nnet::TANH_ACT_TYPE:
       for (int i= 0; i < values.size(); i++) {
 
         values[i] =  tanh(values[i]);
         gradients[i] =  (1-pow(values[i]+nestorovNudge,2)) ;
       }
       break;
-    case nnet::LIN_ACT_TYPE:
+    case Nnet::LIN_ACT_TYPE:
       for (int i= 0; i < values.size(); i++) {
         gradients[i] =  values[i] + nestorovNudge;
       }
       break;
-    case nnet::RELU_ACT_TYPE:
+    case Nnet::RELU_ACT_TYPE:
       for (int i= 0; i < values.size(); i++) {
         values[i] = fmax(0.0,values[i]);
         gradients[i] = (values[i]+nestorovNudge) > 0.0 ? 1 : 0.0;
@@ -441,15 +474,127 @@ void backpropper::flowDataThroughNetwork(std::vector<std::vector<double> >& data
   return;
 }
 
+double backpropper::calcCost(bool doTestdata){
+  std::vector<double> *actual = NULL;
+  std::vector<double> *fitted = NULL;
+  size_t nRecords = 0;
+  bool allOk = true;
+
+  if(doTestdata){
+    if(_testdataLoaded){
+      actual = _testdata->labels();
+      fitted = &_testdataGeneratedValues;
+      nRecords = _testdata->nRecords();
+    }else{
+      msg::error(std::string("There is no testdata load, cannot calculate test cost\n"));
+      allOk = false;
+    }
+  }else{
+    if(_net->dataAndLabelsLoaded()){
+      actual = &_net->_dataLabels;
+      fitted = &_net->_generatedLabels;
+      nRecords = _net->_nDataRecords;
+    }else{
+      msg::error(std::string("There is no testdata load, cannot calculate train cost\n"));
+      allOk = false;
+    }
+  }
+  double cost = 0.0;
+  if(allOk){
+    switch (_lossType){
+      case backpropper::MSE_LOSS_TYPE:
+        cost = 0.0;
+        for(int iRecord = 0; iRecord < nRecords; ++iRecord){
+          for(int iUnit = 0; iUnit < _net->_nOutputUnits; ++iUnit){
+            cost += pow((*fitted)[(iUnit*nRecords)+iRecord] - (*actual)[(iUnit*nRecords)+iRecord],2.0)/nRecords;
+          }
+        }
+
+        break;
+      case  backpropper::CROSS_ENT_TYPE:
+        cost = 0.0;
+        for(int iRecord = 0; iRecord < nRecords; ++iRecord){
+          for(int iUnit = 0; iUnit < _net->_nOutputUnits; ++iUnit){
+            if((*actual)[(iUnit*nRecords)+iRecord] > 0.5){
+              cost -= log( (*fitted)[(iUnit*nRecords)+iRecord]);
+            }
+          }
+        }
+    }
+  }else{
+    cost = -1.0;
+  }
+  return cost;
+}
+
+double backpropper::calcAccuracy(bool doTestdata){
+  size_t nRecords = 0;
+  std::vector<double>* actual = NULL;
+  std::vector<double>* fitted = NULL;
+  double accuracy = 0.0;
+  double maxProb = 0.0;
+  bool correct = false;
+  double allOk = true;
+
+
+  if(doTestdata){
+    if(_testdataLoaded){
+      actual = _testdata->labels();
+      fitted = &_testdataGeneratedValues;
+      nRecords = _testdata->nRecords();
+    }else{
+      msg::error(std::string("There is no testdata load, cannot calculate test cost\n"));
+      allOk = false;
+    }
+
+  }else{
+    if(_net->dataAndLabelsLoaded()){
+      actual = &_net->_dataLabels;
+      fitted = &_net->_generatedLabels;
+      nRecords = _net->_nDataRecords;
+    }else{
+      msg::error(std::string("There is no testdata load, cannot calculate train cost\n"));
+      allOk = false;
+    }
+  }
+
+  if(allOk){
+    for(int iRecord = 0; iRecord < nRecords; ++iRecord){
+      for(int iUnit = 0; iUnit < _net->_nOutputUnits; ++iUnit){
+        if(iUnit == 0){
+          maxProb = (*fitted)[(iUnit*nRecords)+iRecord];
+          if((*actual)[(iUnit*nRecords)+iRecord] > 0.5){
+            correct = true;
+          }else{
+            correct = false;
+          }
+        }else{
+          if((*fitted)[(iUnit*nRecords)+iRecord] > maxProb){
+            maxProb = (*fitted)[(iUnit*nRecords)+iRecord];
+            if((*actual)[(iUnit*nRecords)+iRecord] > 0.5){
+              correct = true;
+            }else{
+              correct = false;
+            }
+          }
+        }
+      }
+      if(correct){accuracy += 1.0;}
+    }
+    accuracy /= nRecords;
+  }else{
+    accuracy = -1.0;
+  }
+  return accuracy;
+}
 
 bool backpropper::doBackPropOptimise(size_t nBatchIndicator,
                     double wgtLearnRate,
                     double biasLearnRate,
                     size_t nEpoch){
-  std::ostringstream message;
   bool allOk = true;
   size_t nInputs, nOutputs, iDataStart, iDataStop;
-
+  std::ostringstream message;
   size_t nBatchSizeTarget;
   double initialCost = 0.0, cost = 0.0;
   double momentum_mu = _momMu;
@@ -468,8 +613,7 @@ bool backpropper::doBackPropOptimise(size_t nBatchIndicator,
   if(_doTestCost){
     if (!_testdataLoaded){
       _doTestCost = false;
-      message << "There is no Non-Train data load, cannot calculate test error\n";
-      msg::error(message);
+      msg::error(std::string("There is no Non-Train data load, cannot calculate test error\n"));
     }
   }
   //http://stats.stackexchange.com/questions/140811/how-large-should-the-batch-size-be-for-stochastic-gradient-descent
@@ -525,14 +669,14 @@ bool backpropper::doBackPropOptimise(size_t nBatchIndicator,
   feedForwardTrainData(true,0.0);
 
   outData = &_net->_generatedLabels;
-  initialCost = _net->getCost();
+  initialCost = calcCost();
   _epochTrainCostUpdates.push_back(initialCost);
   message << "Initial Cost: " << initialCost <<  std::endl;
   msg::info(message);
   if(_doTestCost){
     _testdataFeedForwardValues.resize(1);
     _net->flowDataThroughNetwork(_testdataFeedForwardValues, _testdataGeneratedValues);
-    double testCost = _net->calcCost(_testdata->labels(),_testdataGeneratedValues,_testdata->nRecords(), _testdata->nLabelFields());
+    double testCost = calcCost();
     _epochTestCostUpdates.push_back(testCost);
     message << "Initial Test Cost: " << testCost <<  std::endl;
     msg::info(message);
@@ -586,7 +730,7 @@ bool backpropper::doBackPropOptimise(size_t nBatchIndicator,
         feedForwardTrainData(true, 0.0);
       }
       if(iEpoch == 0 & iDataStart == 0){
-        initialCost = _net->getCost();
+        initialCost = calcCost();
         message << "Initial Cost Check: " << initialCost <<  std::endl;
         msg::info(message);
       }
@@ -615,8 +759,8 @@ bool backpropper::doBackPropOptimise(size_t nBatchIndicator,
           iDataInBatch = iDataIndex;
         }
         switch (_net->_outputType){
-          case  nnet::LIN_OUT_TYPE:
-          case  nnet::SMAX_OUT_TYPE:
+          case  Nnet::LIN_OUT_TYPE:
+          case  Nnet::SMAX_OUT_TYPE:
             if(_doDropout){
               // Softmax with cross entropy has a simple derviative form for the weights on the input to the output units
               for(int iInput = 0; iInput < nInputs; ++iInput){
@@ -666,8 +810,8 @@ bool backpropper::doBackPropOptimise(size_t nBatchIndicator,
             iDataInBatch = iDataIndex;
           }
           switch (_net->_outputType){
-            case  nnet::LIN_OUT_TYPE:
-            case  nnet::SMAX_OUT_TYPE:
+            case  Nnet::LIN_OUT_TYPE:
+            case  Nnet::SMAX_OUT_TYPE:
               if(_doDropout){
                 iDropoutLayerIndex--;
                 // We need the derivative of the weight multiplication on the input; by the activation dervi;
@@ -768,7 +912,7 @@ bool backpropper::doBackPropOptimise(size_t nBatchIndicator,
     }
 
     //feedForwardTrainData();
-    cost = _net->getCost();
+    cost = calcCost();
     if(std::isnan(cost)){
       message << "Nan cost so quitting!\n";
       msg::warn(message);
@@ -778,12 +922,13 @@ bool backpropper::doBackPropOptimise(size_t nBatchIndicator,
       _epochTrainCostUpdates.push_back(cost);
       if(iEpoch % _epochPrintSchedule == 0){
         switch (_net->_outputType){
-          case  nnet::LIN_OUT_TYPE:
+          case  Nnet::LIN_OUT_TYPE:
             message << std::endl << "Epoch " << iEpoch << "-- Cost " << cost << std::endl;
             msg::info(message);
             break;
-          case  nnet::SMAX_OUT_TYPE:
-            message << std::endl << "Epoch " << iEpoch << "-- Cost " << cost << "-- Accuracy " << _net->getAccuracy() << "  ("  << _net->getAccuracy() * _net->_nDataRecords << ")" << std::endl;
+          case  Nnet::SMAX_OUT_TYPE:
+            double accuracy = calcAccuracy();
+            message << std::endl << "Epoch " << iEpoch << "-- Cost " << cost << "-- Accuracy " << accuracy << "  (" << accuracy * _net->_nDataRecords << ")" << std::endl;
             msg::info(message);
             break;
         }
@@ -791,7 +936,7 @@ bool backpropper::doBackPropOptimise(size_t nBatchIndicator,
         if(_doTestCost){
           _testdataFeedForwardValues.resize(1);
           _net->flowDataThroughNetwork(_testdataFeedForwardValues, _testdataGeneratedValues);
-          double testCost = _net->calcCost(_testdata->labels(),_testdataGeneratedValues,_testdata->nRecords(), _testdata->nLabelFields());
+          double testCost = calcCost(true);
           _epochTestCostUpdates.push_back(testCost);
           message << "Test Cost: " << testCost <<  std::endl;
           msg::info(message);
@@ -802,24 +947,24 @@ bool backpropper::doBackPropOptimise(size_t nBatchIndicator,
 
   if(allOk){
     feedForwardTrainData(false,0.0);
-    cost = _net->getCost();
-    
+    cost = calcCost();
+
     message << std::fixed;
     message << std::setprecision(2) <<  "Cost went from " << initialCost << " to " <<  cost << std::endl;
     msg::info(message);
-    if(_net->_outputType == nnet::SMAX_OUT_TYPE){
-      message << std::setprecision(2) <<  "Final accuracy is " << 100* _net->getAccuracy() << "%"<< std::endl;
+    if(_net->_outputType == Nnet::SMAX_OUT_TYPE){
+      message << std::setprecision(2) <<  "Final accuracy is " << 100* calcAccuracy() << "%"<< std::endl;
       msg::info(message);
     }
     if(_doTestCost){
       _testdataFeedForwardValues.resize(1);
       _net->flowDataThroughNetwork(_testdataFeedForwardValues, _testdataGeneratedValues);
-      double testCost = _net->calcCost(_testdata->labels(),_testdataGeneratedValues,_testdata->nRecords(), _testdata->nLabelFields());
+      double testCost = calcCost(true);
       _epochTestCostUpdates.push_back(testCost);
       message << "Test Cost: " << testCost <<  std::endl;
       msg::info(message);
-      if(_net->_outputType == nnet::SMAX_OUT_TYPE){
-        message << "Test Accuracy: " << 100*_net->calcAccuracy(_testdata->labels(),_testdataGeneratedValues,_testdata->nRecords(), _testdata->nLabelFields()) << "%" << std::endl;
+      if(_net->_outputType == Nnet::SMAX_OUT_TYPE){
+        message << "Test Accuracy: " << 100*calcAccuracy() << "%" << std::endl;
         msg::info(message);
       }
     }
@@ -879,7 +1024,7 @@ void backpropper::printGradients(int iWeightsIndex){
     }
     if(iWeightsIndex < _net->_hiddenBiases.size()){
       message << "Bias Vector: " << std::endl;
-      
+
       for(std::vector<double>::const_iterator it = _net->_hiddenBiases[iWeightsIndex].begin(); it !=  _net->_hiddenBiases[iWeightsIndex].end(); ++it){
         if(it == _net->_hiddenBiases[iWeightsIndex].begin()){
           message << *it;

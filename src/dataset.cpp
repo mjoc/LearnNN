@@ -280,11 +280,11 @@ size_t Dataset::nLabelFields() const{
   return _nLabelFields;
 }
 
-std::vector<double> Dataset::data(){
-  return _data;
+std::vector<double>* Dataset::data(){
+  return &_data;
 }
-std::vector<double> Dataset::labels(){
-  return _labels;
+std::vector<double>* Dataset::labels(){
+  return &_labels;
 }
 
 bool Dataset::isPcaDone() const {
@@ -621,7 +621,7 @@ void Dataset::writeData(){
  }
  }
 
-
+/*
 RCPP_MODULE(af_dataset) {
 
   Rcpp::class_<Dataset>("Dataset")
@@ -633,4 +633,4 @@ RCPP_MODULE(af_dataset) {
   .method("ncol",&Dataset::nFields, "Number of fields in the dataset")
   ;
 }
-
+*/

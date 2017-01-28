@@ -92,8 +92,8 @@ public:
   void writeData();
 
 
-  std::vector<double> data();
-  std::vector<double> labels();
+  std::vector<double>* data();
+  std::vector<double>* labels();
   std::vector<double> getPcaMatrix() const;
 
   normDataType getNormType() const;
