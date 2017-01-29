@@ -508,7 +508,7 @@ void Dataset::transformDataset(const Dataset& otherDataset){
     normFromDataset(otherDataset);
   }
 }
-void Dataset::printData(size_t nRecords){
+void Dataset::printData(size_t nRecords = 10){
   std::ostringstream message;
   if(_dataLoaded){
     if(nRecords == 0){
@@ -573,64 +573,52 @@ void Dataset::writeData(){
 }
 
 
- Dataset::Dataset(Rcpp::NumericMatrix data, Rcpp::NumericMatrix labels){
- _outputDir = "~/";
- bool allOk = true;
- _dataLoaded = false;
- _labelsLoaded = false;
- _nRecords = 0;
- _nFields = 0;
- _nLabelFields = 0;
- _nInputFields = 0;
- 
- _normType = DATA_NORM_NONE;
- _pcaDone = false;
- _pcaEigenMatLoaded = false;
- _nPcaDimensions = 0;
- 
- if(allOk){
- _nFields = data.ncol();
- _nInputFields = _nFields;
- _nRecords = data.nrow();
- 
- _data.resize(_nInputFields*_nRecords);
- 
- for(int iCol = 0; iCol < _nFields; iCol++){
- for(int iRow = 0; iRow < _nRecords; iRow++){
- //Switching from row major to column major
- _data[iCol*_nRecords + iRow] = data(iRow,iCol);
- }
- }
- 
- if(labels.nrow() > 0){
- _nLabelFields = labels.ncol();
- _labels.resize(_nRecords*_nLabelFields);
- 
- for(int iCol = 0; iCol < _nFields; iCol++){
- for(int iRow = 0; iRow < _nRecords; iRow++){
- _labels[iCol*_nRecords + iRow] = labels(iRow,iCol);
- }
- }
- _labelsLoaded = true;
- }else{
- _labels.resize(0);
- }
- _dataLoaded = true;
- _dataSource = std::string("R");
- _labelsSource = std::string("R");
- }
- }
+// Dataset::Dataset(Rcpp::NumericMatrix data, Rcpp::NumericMatrix labels){
+// _outputDir = "~/";
+// bool allOk = true;
+// _dataLoaded = false;
+// _labelsLoaded = false;
+// _nRecords = 0;
+// _nFields = 0;
+// _nLabelFields = 0;
+// _nInputFields = 0;
+//
+// _normType = DATA_NORM_NONE;
+// _pcaDone = false;
+// _pcaEigenMatLoaded = false;
+// _nPcaDimensions = 0;
+//
+// if(allOk){
+// _nFields = data.ncol();
+// _nInputFields = _nFields;
+// _nRecords = data.nrow();
+//
+// _data.resize(_nInputFields*_nRecords);
+//
+// for(int iCol = 0; iCol < _nFields; iCol++){
+// for(int iRow = 0; iRow < _nRecords; iRow++){
+// //Switching from row major to column major
+// _data[iCol*_nRecords + iRow] = data(iRow,iCol);
+// }
+// }
+//
+// if(labels.nrow() > 0){
+// _nLabelFields = labels.ncol();
+// _labels.resize(_nRecords*_nLabelFields);
+//
+// for(int iCol = 0; iCol < _nFields; iCol++){
+// for(int iRow = 0; iRow < _nRecords; iRow++){
+// _labels[iCol*_nRecords + iRow] = labels(iRow,iCol);
+// }
+// }
+// _labelsLoaded = true;
+// }else{
+// _labels.resize(0);
+// }
+// _dataLoaded = true;
+// _dataSource = std::string("R");
+// _labelsSource = std::string("R");
+// }
+// }
 
-/*
-RCPP_MODULE(af_dataset) {
 
-  Rcpp::class_<Dataset>("Dataset")
-
-  .constructor<Rcpp::NumericMatrix , Rcpp::NumericMatrix >("data and labels")
-
-  .method("print", &Dataset::printData, "Print the data")
-  .method("nrow",&Dataset::nRecords, "Number of records in the dataset")
-  .method("ncol",&Dataset::nFields, "Number of fields in the dataset")
-  ;
-}
-*/

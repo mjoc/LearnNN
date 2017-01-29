@@ -107,7 +107,6 @@ void Nnet::setActivationType(std::string activationType){
 
 std::string Nnet::getActivationType(){
   std::string returnValue;
-  msg::error(std::string("here\n"));
   switch (_activationType){
   case LIN_ACT_TYPE:
     returnValue = "linear";
@@ -164,6 +163,10 @@ bool Nnet::dataLoaded(){
 
 bool Nnet::dataAndLabelsLoaded(){
   return _dataLoaded && _dataLabelsLoaded;
+}
+
+size_t Nnet::nDataRecords(){
+  return _nDataRecords;
 }
 
 bool Nnet::setDataAndLabels(Dataset dataToClamp){
@@ -627,7 +630,7 @@ void Nnet::printGeometry(){
   msg::info(message);
   if(_hiddenLayerSizes.size()>0){
     for(int iLayer =0; iLayer < _hiddenLayerSizes.size(); iLayer++) {
-      message << "Layer " << iLayer + 1 << " units: " << _hiddenLayerSizes[iLayer] << std::endl;
+      message << "Hidden Layer " << iLayer + 1 << " units: " << _hiddenLayerSizes[iLayer] << std::endl;
       msg::info(message);
     }
   }else{
@@ -783,13 +786,13 @@ void Nnet::printFeedForwardValues(int iIndex){
     msg::error(std::string("Invalid FF index!\n"));
   }
 }
-
+/*
 Nnet::Nnet(Rcpp::IntegerVector networkgeometry,
      Rcpp::String hiddenUnitActivation,
      Rcpp::String outputUnitActivation){
   std::ostringstream message;
   bool geometryValid = true;
-  size_t nInputSize, nOutputSize;
+  size_t nInputSize = 0, nOutputSize = 0;
   std::vector<int> hiddenLayerSizes;
 
   //// DEFAULTS ////
@@ -844,9 +847,6 @@ Nnet::Nnet(Rcpp::IntegerVector networkgeometry,
     nInputSize = networkgeometry[0];
     nOutputSize = networkgeometry[networkgeometry.length()-1];
 
-    message << "Input size " << nInputSize << " output size " << nOutputSize << std::endl;
-    msg::info(message);
-
     if(nInputSize < 1){
       msg::error(std::string("Number of Input Units needs to be >0\n"));
       geometryValid = false;
@@ -856,7 +856,7 @@ Nnet::Nnet(Rcpp::IntegerVector networkgeometry,
       geometryValid = false;
     }
     hiddenLayerSizes.resize(0);
-    for(size_t iHidden = 1; iHidden < networkgeometry.length()-2; iHidden++){
+    for(size_t iHidden = 1; iHidden < networkgeometry.length()-1; iHidden++){
       hiddenLayerSizes.push_back(networkgeometry[iHidden]);
       if(networkgeometry[iHidden] < 1){
         geometryValid = false;
@@ -899,8 +899,35 @@ Nnet::Nnet(Rcpp::IntegerVector networkgeometry,
     msg::error(std::string("Check the Activation Type, Output Type and Geometry\n"));
   }
 }
+*/
 
 
+//void Nnet::clampData(Rcpp::NumericMatrix inputData,
+//                Rcpp::NumericMatrix dataLabels){
+//  std::ostringstream message;
+//  bool allOk = true;
+//
+//  if(inputData.ncol() != _nInputUnits){
+//    message << "Input Units set to: " << _nInputUnits << "; columns in the input data: " << inputData.ncol() << " cannot clamp!\n";
+//    msg::error(message);
+//    allOk = false;
+//  }
+//  if(inputData.ncol() != _nInputUnits){
+//    message << "Output Units set to: " << _nInputUnits << "; columns in the label data: " << dataLabels.ncol() << " cannot clamp!\n";
+//    msg::error(message);
+//    allOk = false;
+//  }
+//  if(allOk){
+//    Dataset indata(inputData, dataLabels);
+//    setDataAndLabels(indata);
+//  }else{
+//    msg::error("Data clamp failed!");
+//  }
+//  return;
+//}
+
+
+/*
 
 RCPP_MODULE(af_nnet) {
 
@@ -908,15 +935,29 @@ RCPP_MODULE(af_nnet) {
 
   .constructor<Rcpp::IntegerVector , Rcpp::String, Rcpp::String >("net details")
 
-  .method("printGeom", &Nnet::printGeometry, "Print the data")
   .property("HiddenLayers",&Nnet::getHiddenLayerSizes, &Nnet::setHiddenLayerSizes, "Vector of Hidden layer sizes")
   .property("actType", &Nnet::getActivationType, &Nnet::setActivationType,"Hidden layer activation type")
   .property("outType",&Nnet::getOutputType , &Nnet::setOutputType, "Output Unit Type")
 
+  .method("printGeometry", &Nnet::printGeometry, "Print the data")
+  .method("clampData", &Nnet::clampData, "Clamp data")
 
+  .property("dataLoaded",&Nnet::dataLoaded, "is data loaded (clamped)")
+  .property("dataAndLabelsloaded",&Nnet::dataAndLabelsLoaded, "is data loaded (clamped) together with labels")
+  .property("nDataRecords",&Nnet::nDataRecords, "is data loaded (clamped)")
 
   ;
+
+  Rcpp::class_<Dataset>("Dataset")
+
+    .constructor<Rcpp::NumericMatrix , Rcpp::NumericMatrix >("data and labels")
+    .method("print", &Dataset::printData, "Print the data")
+    .method("nrow",&Dataset::nRecords, "Number of records in the dataset")
+    .method("ncol",&Dataset::nFields, "Number of fields in the dataset")
+    ;
+
+
 }
 
-
+*/
 

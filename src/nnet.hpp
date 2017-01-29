@@ -65,12 +65,10 @@ private:
 public:
   Nnet();
   Nnet(Dataset initialData);
-//  Nnet(std::vector<int> networkgeometry,
-//       std::string hiddenUnitActivation = std::string("linear"),
-//       std::string outputUnitActivation = std::string("linear"));
-  Nnet(Rcpp::IntegerVector networkgeometry,
-      Rcpp::String hiddenUnitActivation,
-      Rcpp::String outputUnitActivation);
+  Nnet(std::vector<int> networkgeometry,
+       std::string hiddenUnitActivation = std::string("linear"),
+       std::string outputUnitActivation = std::string("linear"));
+
   ~Nnet();
 
 
@@ -82,8 +80,14 @@ public:
   bool loadDataLabelsFromFile(char *filename,
                               bool hasHeader,
                               char delim);
+  bool loadDataLabelsFromFile(char *dataFileName,
+                              char *labelsFileName,
+                              bool hasHeader,
+                              char delim);
+  
   bool dataLoaded();
   bool dataAndLabelsLoaded();
+  size_t nDataRecords();
 
   // Set Network Details
   void setInputSize(size_t nInputUnits);
@@ -106,8 +110,6 @@ public:
   bool numericLabels();
   bool classLabels();
 
-
-
   // Write to file
   void setOutputFolder(char *filename);
   void writeWeights();
@@ -122,6 +124,14 @@ public:
   void printUnitType();
   void printOutputType();
   void printFeedForwardValues(int iIndex);
+
+  // R package stuff
+//  Nnet(Rcpp::IntegerVector networkgeometry,
+//       Rcpp::String hiddenUnitActivation,
+//       Rcpp::String outputUnitActivation);
+  //void clampData(Rcpp::NumericMatrix inputData,
+   //               Rcpp::NumericMatrix dataLabels);
+  //void clampData(Rcpp::NumericMatrix inputData);
 
 
 };

@@ -10,7 +10,7 @@
 #define __MOC_dataset_hpp_
 
 #include <vector>
-#include "Rcpp.h"
+//#include "Rcpp.h"
 
 class Dataset{
 public:
@@ -59,7 +59,7 @@ private:
 public:
   Dataset(char *datafilename, char *labelfilename, bool hasHeader, char delim);
   // For R
-  Dataset(Rcpp::NumericMatrix data, Rcpp::NumericMatrix labels);
+  //Dataset(Rcpp::NumericMatrix data, Rcpp::NumericMatrix labels);
   ~Dataset();
   // Load data
 
@@ -83,9 +83,9 @@ public:
 
   void transformDataset(const Dataset& otherDataset);
 
-  void printData(size_t nRecords = 0);
+  void printData(size_t nRecords);
 
-  void printLabels(size_t nRecords = 0);
+  void printLabels(size_t nRecords = 10);
 
   // Write to file
   void setOutputFolder(char *filename);
