@@ -1,4 +1,5 @@
 # Neural Network Scratch Code #
+## This code is not a working version as of yet
 
 * Some scratch work to study Bayesian Neural Networks (ala MacKay et al) and Networks with *Energy* Based Units
 * First implement a regular FeedForward, Back Prop system
