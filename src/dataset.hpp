@@ -10,7 +10,7 @@
 #define __MOC_dataset_hpp_
 
 #include <vector>
-//#include "Rcpp.h"
+#include "Rcpp.h"
 
 class Dataset{
 public:
@@ -30,9 +30,6 @@ private:
   size_t _nLabelFields;
   size_t _nInputFields;
 
-  std::string _dataSource;
-  std::string _labelsSource;
-
   bool _pcaDone;
   std::vector<double> _data;
   std::vector<double> _labels;
@@ -45,10 +42,10 @@ private:
   std::vector<double> _normParam1;
   std::vector<double> _normParam2;
 
-  bool loadDataFromFile(char *filename,
+  bool loadDataFromFile(const char *filename,
                         bool hasHeader,
                         char delim);
-  bool loadLabelsFromFile(char *filename,
+  bool loadLabelsFromFile(const char *filename,
                           bool hasHeader,
                           char delim);
 
@@ -57,9 +54,9 @@ private:
 
 
 public:
-  Dataset(char *datafilename, char *labelfilename, bool hasHeader, char delim);
+  Dataset(const char *datafilename, const char *labelfilename, bool hasHeader, const char* delim);
   // For R
-  //Dataset(Rcpp::NumericMatrix data, Rcpp::NumericMatrix labels);
+  Dataset(Rcpp::String datafilename, Rcpp::String labelfilename, Rcpp::LogicalVector hasHeader, Rcpp::String delim);
   ~Dataset();
   // Load data
 
@@ -83,9 +80,9 @@ public:
 
   void transformDataset(const Dataset& otherDataset);
 
-  void printData(size_t nRecords);
+  void printData(int nRecords);
 
-  void printLabels(size_t nRecords = 10);
+  void printLabels(int nRecords = 10);
 
   // Write to file
   void setOutputFolder(char *filename);

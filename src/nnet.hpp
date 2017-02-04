@@ -39,7 +39,7 @@ private:
   outputType _outputType;
 
 
-  // Things to do with non- Train Data
+  // Things to do with loaded Data
   bool _dataLabelsLoaded;
   bool _dataLoaded;
   size_t _nDataRecords;
@@ -47,8 +47,9 @@ private:
   size_t _nPcaDimensions;
   //size_t _nNonTrainDataInputUnits;
   //size_t _nNonTrainDataOutputUnits;
+  std::vector<double>* _inputData;
   std::vector<std::vector<double> > _feedForwardValues;
-  std::vector<double> _dataLabels;
+  std::vector<double>* _dataLabels;
   bool _labelsGenerated;
   std::vector<double> _generatedLabels;
 
@@ -57,14 +58,15 @@ private:
   void activateOutput(std::vector<double>& values);
 
   // Functions
-  void flowDataThroughNetwork(std::vector<std::vector<double> >& dataflowStages,
+  void flowDataThroughNetwork(std::vector<double>* inputDataMatrix,
+                              std::vector<std::vector<double> >& dataflowStages,
                               std::vector<double>& dataflowMatrix);
   // Wrting out to file
   std::string _outputDir;
 
 public:
   Nnet();
-  Nnet(Dataset initialData);
+  //Nnet(Dataset initialData);
   Nnet(std::vector<int> networkgeometry,
        std::string hiddenUnitActivation = std::string("linear"),
        std::string outputUnitActivation = std::string("linear"));
@@ -84,6 +86,8 @@ public:
                               char *labelsFileName,
                               bool hasHeader,
                               char delim);
+  
+  bool clampData(Dataset& dataset);
   
   bool dataLoaded();
   bool dataAndLabelsLoaded();

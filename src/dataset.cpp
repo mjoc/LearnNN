@@ -18,8 +18,9 @@
 
 #define MIN_DATA_RANGE 1e-4
 
-Dataset::Dataset(char *dataFileName, char *labelsFileName, bool hasHeader, char delim){
+Dataset::Dataset(const char *dataFileName, const char *labelsFileName, bool hasHeader, const char* delim){
   bool allOk = true;
+  char delimiter = *delim;
   _dataLoaded = false;
   _labelsLoaded = false;
   _nRecords = 0;
@@ -31,14 +32,12 @@ Dataset::Dataset(char *dataFileName, char *labelsFileName, bool hasHeader, char 
   _pcaDone = false;
   _pcaEigenMatLoaded = false;
   _nPcaDimensions = 0;
-  allOk = loadDataFromFile(dataFileName, hasHeader, delim);
+  allOk = loadDataFromFile(dataFileName, hasHeader, delimiter);
   if(allOk){
-    allOk = loadLabelsFromFile(labelsFileName, hasHeader, delim);
+    allOk = loadLabelsFromFile(labelsFileName, hasHeader, delimiter);
   }
   if(allOk){
     _dataLoaded = true;
-    _dataSource = std::string(dataFileName);
-    _labelsSource = std::string(labelsFileName);
   }
 
   _outputDir = "~/";
@@ -76,7 +75,9 @@ bool Dataset::labelsLoaded() const{
 }
 
 
-bool Dataset::loadDataFromFile(char *filename, bool hasHeader, char delim){
+bool Dataset::loadDataFromFile(const char *filename,
+                               bool hasHeader,
+                               char delim){
   std::ostringstream message;
   bool allOk = true;
   bool first = true;
@@ -168,7 +169,9 @@ bool Dataset::loadDataFromFile(char *filename, bool hasHeader, char delim){
   return allOk;
 };
 
-bool Dataset::loadLabelsFromFile(char *filename, bool hasHeader, char delim){
+bool Dataset::loadLabelsFromFile(const char *filename,
+                                 bool hasHeader,
+                                 char delim){
   std::ostringstream message;
   bool allOk = true;
   bool first = true;
@@ -508,17 +511,23 @@ void Dataset::transformDataset(const Dataset& otherDataset){
     normFromDataset(otherDataset);
   }
 }
-void Dataset::printData(size_t nRecords = 10){
+void Dataset::printData(int nRecordsToPrint = 10){
   std::ostringstream message;
+  size_t startRow = 0;
   if(_dataLoaded){
-    if(nRecords == 0){
-      nRecords = _nRecords;
+    if(nRecordsToPrint == 0){
+      nRecordsToPrint = _nRecords;
     }else{
-      nRecords = std::min(nRecords, _nRecords);
+      if(nRecordsToPrint < 0){
+        nRecordsToPrint = -nRecordsToPrint;
+        startRow = std::max(0,(int)_nRecords - nRecordsToPrint + 1);
+      }
+
+      nRecordsToPrint = std::min(nRecordsToPrint, (int)_nRecords);
     }
     message << "Printing Data" << std::endl;
     msg::info(message);
-    for(int iRow = 0; iRow < nRecords; iRow++){
+    for(int iRow = startRow; iRow < nRecordsToPrint; iRow++){
       message << " Record " << iRow + 1 << ": \t";
       for(int iCol = 0; iCol < _nFields; iCol++){
         message << std::fixed;
@@ -534,17 +543,22 @@ void Dataset::printData(size_t nRecords = 10){
 }
 
 
-void Dataset::printLabels(size_t nRecords){
+void Dataset::printLabels(int nRecordsToPrint){
   std::ostringstream message;
+  int startRow = 0;
   if(_dataLoaded){
-    if(nRecords == 0){
-      nRecords = _nRecords;
+    if(nRecordsToPrint == 0){
+      nRecordsToPrint = _nRecords;
     }else{
-      nRecords = std::min(nRecords, _nRecords);
+      if(nRecordsToPrint < 0){
+        nRecordsToPrint = -nRecordsToPrint;
+        startRow = std::max(0,(int)_nRecords - nRecordsToPrint);
+      }
+      nRecordsToPrint = std::min(nRecordsToPrint, (int)_nRecords);
     }
     message << "Printing Labels" << std::endl;
     msg::info(message);
-    for(int iRow = 0; iRow < nRecords; iRow++){
+    for(int iRow = 0; iRow < nRecordsToPrint; iRow++){
       message << "Record " << iRow + 1 << ": ";
       for(int iCol = 0; iCol < _nLabelFields; iCol++){
         message << _labels[(iCol* _nRecords)+iRow] << " | ";
@@ -572,6 +586,34 @@ void Dataset::writeData(){
   return;
 }
 
+
+// For R interface
+Dataset::Dataset(Rcpp::String dataFileName, Rcpp::String labelsFileName, Rcpp::LogicalVector hasHeader, Rcpp::String delim){
+  bool allOk = true;
+  const char *delimiter = delim.get_cstring();
+  char delimiter2 = *delimiter;
+  bool hasHeader2 = hasHeader[0]==FALSE;
+  _dataLoaded = false;
+  _labelsLoaded = false;
+  _nRecords = 0;
+  _nFields = 0;
+  _nLabelFields = 0;
+  _nInputFields = 0;
+
+  _normType = DATA_NORM_NONE;
+  _pcaDone = false;
+  _pcaEigenMatLoaded = false;
+  _nPcaDimensions = 0;
+  allOk = loadDataFromFile(dataFileName.get_cstring(), hasHeader2, delimiter2);
+  if(allOk){
+    allOk = loadLabelsFromFile(labelsFileName.get_cstring(), hasHeader2, delimiter2);
+  }
+  if(allOk){
+    _dataLoaded = true;
+  }
+
+  _outputDir = "~/";
+}
 
 // Dataset::Dataset(Rcpp::NumericMatrix data, Rcpp::NumericMatrix labels){
 // _outputDir = "~/";

@@ -28,38 +28,118 @@ Nnet::Nnet(){
   _outputDir = "~/";
 };
 
-Nnet::Nnet(Dataset initialData){
+Nnet::Nnet(std::vector<int> networkgeometry,
+           std::string hiddenUnitActivation,
+           std::string outputUnitActivation){
+  std::ostringstream message;
+  bool geometryValid = true;
+  size_t nInputSize = 0, nOutputSize = 0;
+  std::vector<int> hiddenLayerSizes;
+
+  //// DEFAULTS ////
   _nOutputUnits = 0;
   _nInputUnits = 0;
   _outputType = Nnet::LIN_OUT_TYPE;
   _activationType = Nnet::LIN_ACT_TYPE;
 
-  _dataLabelsLoaded = false;
+
   _dataLoaded = false;
+  _dataLabelsLoaded = false;
   _nDataRecords = 0;
 
-  if(initialData.dataLoaded()){
-    _feedForwardValues.resize(1);
-    _feedForwardValues[0] = *initialData.data();
-    _nInputUnits = initialData.nFields();
-    _nDataRecords = initialData.nRecords();
-    _dataLoaded = true;
+  _outputDir = "~/";
+  //// END DEFAULTS ////
 
+  bool activationTypeValid = false;
+  if(hiddenUnitActivation == "linear"){
+    activationTypeValid = true;
+    _activationType = Nnet::LIN_ACT_TYPE;
+  }
+  if(hiddenUnitActivation == "tanh"){
+    activationTypeValid = true;
+    _activationType = Nnet::TANH_ACT_TYPE;
+  }
+  if(hiddenUnitActivation == "relu"){
+    activationTypeValid = true;
+    _activationType = Nnet::RELU_ACT_TYPE;
+  }
+  if(!activationTypeValid){
+    msg::error(std::string("Invalid Hidden Unit Activation, only 'linear' or 'tanh' or 'relu'!\n"));
+  }
 
-    if(initialData.labelsLoaded()){
-      _dataLabels = *initialData.labels();
-      _nOutputUnits = initialData.nLabelFields();
-      _dataLabelsLoaded = true;
+  bool outputTypeValid = false;
+  if(outputUnitActivation == "linear"){
+    outputTypeValid = true;
+    _outputType = Nnet::LIN_OUT_TYPE;
+  }
+  if(outputUnitActivation == "softmax"){
+    outputTypeValid = true;
+    _outputType = Nnet::SMAX_OUT_TYPE;
+  }
+  if(!outputTypeValid){
+    msg::error(std::string("Invalid Output Unit Type, only 'linear' or 'softmax'!\n"));
+  }
 
-      _outputWeights.resize(_nInputUnits * _nOutputUnits, 0);
+  size_t nLayers = networkgeometry.size();
+  if (nLayers < 3){
+    msg::error(std::string("Network Geometry Size Vector is of size 1, needs to include at least input and output sizes!\n"));
+    geometryValid = false;
+  }else{
+    nInputSize = networkgeometry[0];
+    nOutputSize = networkgeometry[networkgeometry.size()-1];
+
+    if(nInputSize < 1){
+      msg::error(std::string("Number of Input Units needs to be >0\n"));
+      geometryValid = false;
+    }
+    if(nInputSize < 1){
+      msg::error(std::string("Number of Output Units needs to be >0\n"));
+      geometryValid = false;
+    }
+    hiddenLayerSizes.resize(0);
+    for(size_t iHidden = 1; iHidden < networkgeometry.size()-1; iHidden++){
+      hiddenLayerSizes.push_back(networkgeometry[iHidden]);
+      if(networkgeometry[iHidden] < 1){
+        geometryValid = false;
+        msg::error(std::string("Network Geometry Size Vector contains 0!\n"));
+        break;
+      }
+    }
+  }
+  if(geometryValid){
+    _nInputUnits = nInputSize;
+    _nOutputUnits = nOutputSize;
+    _hiddenLayerSizes.resize(0);
+    for(std::vector<int>::const_iterator it = hiddenLayerSizes.begin(); it != hiddenLayerSizes.end(); ++it) {
+      _hiddenLayerSizes.push_back(*it);
+    }
+    size_t nCurrentInputWidth = _nInputUnits;
+
+    // std::cout << "Initialising weights" << std::endl;
+    _hiddenWeights.resize(0);
+    _hiddenBiases.resize(0);
+
+    if(_hiddenLayerSizes.size() > 0){
+      for(int i = 0 ; i < _hiddenLayerSizes.size(); i++) {
+        _hiddenWeights.resize(i+1);
+        _hiddenWeights[i].resize(nCurrentInputWidth*_hiddenLayerSizes[i], 0);
+        _hiddenBiases.resize(i+1);
+        _hiddenBiases[i].resize(_hiddenLayerSizes[i], 0);
+        nCurrentInputWidth = _hiddenLayerSizes[i];
+      }
+    }
+
+    if(_nOutputUnits > 0){
+      _outputWeights.resize(nCurrentInputWidth * _nOutputUnits, 0);
       _outputBiases.resize(_nOutputUnits, 0);
-
     }
 
   }
-  _outputDir = "~/";
-};
-
+  if((!geometryValid) | (!activationTypeValid) | (!outputTypeValid)){
+    msg::error(std::string("There were problems with Network Specifications\n"));
+    msg::error(std::string("Check the Activation Type, Output Type and Geometry\n"));
+  }
+}
 
 Nnet::~Nnet(){
 };
@@ -160,6 +240,53 @@ bool Nnet::dataLoaded(){
   return _dataLoaded;
 }
 
+bool Nnet::clampData(Dataset& dataset){
+  std::ostringstream message;
+  bool allOk = true;
+  _dataLabelsLoaded = false;
+  _dataLoaded = false;
+  _nDataRecords = 0;
+
+  if(dataset.dataLoaded() || dataset.nRecords()==0){
+    if(dataset.nFields() == _nInputUnits){
+      if(dataset.labelsLoaded()){
+        if(dataset.nLabelFields() != _nOutputUnits){
+          msg::error("Number of output fields in the clamped data not consistent with the network geometry\n");
+          allOk = false;
+        }
+      }
+    }else{
+      msg::error("Number of fields in the clamped data not consistent with the network geometry\n");
+      allOk = false;
+    }
+  }else{
+    msg::error("No data in clamped dataset");
+    allOk = false;
+  }
+
+  if(allOk){
+    _feedForwardValues.resize(0);
+    _inputData = dataset.data();
+
+    _nDataRecords = dataset.nRecords();
+    _dataLoaded = true;
+    }
+    if(dataset.labelsLoaded()){
+      _dataLabels = dataset.labels();
+      _nOutputUnits = dataset.nLabelFields();
+      _dataLabelsLoaded = true;
+
+      _outputWeights.resize(_nInputUnits * _nOutputUnits, 0);
+      _outputBiases.resize(_nOutputUnits, 0);
+      message << "Loaded " << _nDataRecords << " data records and labels\n";
+      msg::info(message);
+    }else{
+      message << "Loaded " << _nDataRecords << " unlabeled data records\n";
+      msg::info(message);
+    }
+  return allOk;
+}
+
 
 bool Nnet::dataAndLabelsLoaded(){
   return _dataLoaded && _dataLabelsLoaded;
@@ -185,13 +312,13 @@ bool Nnet::setDataAndLabels(Dataset dataToClamp){
     allOk = false;
   }
   if(allOk){
-    _feedForwardValues.resize(1);
-    _feedForwardValues[0] = *dataToClamp.data();
+    _feedForwardValues.resize(0);
+    _inputData = dataToClamp.data();
     _nInputUnits = dataToClamp.nFields();
     _nDataRecords = dataToClamp.nRecords();
     _dataLoaded = true;
 
-    _dataLabels = *dataToClamp.labels();
+    _dataLabels = dataToClamp.labels();
     _nOutputUnits = dataToClamp.nLabelFields();
     _dataLabelsLoaded = true;
 
@@ -287,16 +414,17 @@ void Nnet::initialiseWeights(){
   return;
 }
 
-void Nnet::flowDataThroughNetwork(std::vector<std::vector<double> >& dataflowStages,
+void Nnet::flowDataThroughNetwork(std::vector<double>* inputDataMatrix,
+                                  std::vector<std::vector<double> >& dataflowStages,
                                          std::vector<double>& dataflowMatrix){
   size_t nInputRows, nInputCols, nWeightsCols;
 
 
   nInputCols = _nInputUnits;
-  nInputRows = dataflowStages[0].size()/nInputCols;
+  nInputRows = inputDataMatrix->size()/nInputCols;
 
-  if( dataflowStages.size() > 1){
-    dataflowStages.resize(1);
+  if( dataflowStages.size() > 0){
+    dataflowStages.resize(0);
   }
 
   for(int iLayer = 0; iLayer < _hiddenLayerSizes.size(); iLayer++)
@@ -309,12 +437,15 @@ void Nnet::flowDataThroughNetwork(std::vector<std::vector<double> >& dataflowSta
         dataflowMatrix[(iCol*nInputRows)+iRow] = _hiddenBiases[iLayer][iCol];
       }
     }
+    if(iLayer == 0){
+      mat_ops::matMul(nInputRows, nInputCols, (*inputDataMatrix), nWeightsCols, _hiddenWeights[iLayer], dataflowMatrix);
+    }else{
+      mat_ops::matMul(nInputRows, nInputCols, dataflowStages[iLayer-1], nWeightsCols, _hiddenWeights[iLayer], dataflowMatrix);
+    }
 
-    mat_ops::matMul(nInputRows, nInputCols, dataflowStages[iLayer], nWeightsCols, _hiddenWeights[iLayer], dataflowMatrix);
-
-    dataflowStages.resize(iLayer+2);
-    dataflowStages[iLayer+1] = dataflowMatrix;
-    activateUnits(dataflowStages[iLayer+1]);
+    dataflowStages.resize(iLayer+1);
+    dataflowStages[iLayer] = dataflowMatrix;
+    activateUnits(dataflowStages[iLayer]);
 
     //Ninputrows doesn't change
     nInputCols = nWeightsCols;
@@ -358,7 +489,7 @@ void Nnet::feedForward(){
   if(allOk){
     _labelsGenerated = false;
 
-    flowDataThroughNetwork(_feedForwardValues, tempMatrixForLabels);
+    flowDataThroughNetwork(_inputData, _feedForwardValues, tempMatrixForLabels);
 
     _generatedLabels = tempMatrixForLabels;
 
@@ -927,13 +1058,13 @@ Nnet::Nnet(Rcpp::IntegerVector networkgeometry,
 //}
 
 
-/*
+
 
 RCPP_MODULE(af_nnet) {
-
+/*
   Rcpp::class_<Nnet>("Nnet")
 
-  .constructor<Rcpp::IntegerVector , Rcpp::String, Rcpp::String >("net details")
+  .constructor<Rcpp::IntegerVector , Rcpp::String, Rcpp::String >("net geometry; hidden unit activation; output unit type")
 
   .property("HiddenLayers",&Nnet::getHiddenLayerSizes, &Nnet::setHiddenLayerSizes, "Vector of Hidden layer sizes")
   .property("actType", &Nnet::getActivationType, &Nnet::setActivationType,"Hidden layer activation type")
@@ -947,17 +1078,21 @@ RCPP_MODULE(af_nnet) {
   .property("nDataRecords",&Nnet::nDataRecords, "is data loaded (clamped)")
 
   ;
-
+*/
   Rcpp::class_<Dataset>("Dataset")
-
-    .constructor<Rcpp::NumericMatrix , Rcpp::NumericMatrix >("data and labels")
+    .constructor<Rcpp::String,
+                 Rcpp::String,
+                 Rcpp::LogicalVector,
+                 Rcpp::String
+                  >("data and labels")
     .method("print", &Dataset::printData, "Print the data")
     .method("nrow",&Dataset::nRecords, "Number of records in the dataset")
     .method("ncol",&Dataset::nFields, "Number of fields in the dataset")
+    .property("hasLabels", &Dataset::labelsLoaded, "Does the data have labels")
     ;
 
 
 }
 
-*/
+
 

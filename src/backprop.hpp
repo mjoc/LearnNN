@@ -51,6 +51,7 @@ private:
 
   bool _doTestCost;
   Dataset *_testdata;
+  std::vector<double>* _testInputData;
   std::vector<std::vector<double> > _testdataFeedForwardValues;
   std::vector<double> _testdataGeneratedValues;
 
@@ -59,18 +60,11 @@ private:
   bool _shuffleEachEpoch;
   bool _testdataLoaded;
 
-  bool _doDropout;
-  double _inputDropoutRate;
-  double _hiddenDropoutRate;
   bool _doMomentum;
   double _momMu;
   double _momDecay;
   size_t _momDecaySchedule;
   double _momFinal;
-  std::vector<std::vector<int> > _hiddenWeightsDropout;
-  std::vector<std::vector<int> > _hiddenBiasesDropout;
-  std::vector<double> _outputWeightsDropout;
-  std::vector<double> _outputBiasesDropout;
 
   std::vector<double> _epochTrainCostUpdates;
   std::vector<double> _epochTestCostUpdates;
@@ -82,17 +76,11 @@ private:
   void activateUnitsAndCalcGradients(std::vector<double>& values,
                                      std::vector<double>& gradients,
                                      double nesterovAdj = 0.0);
-  void flowDataThroughNetwork(std::vector<std::vector<double> >& dataflowStages,
+  void flowDataThroughNetwork(std::vector<double>& inputData,
+                              std::vector<std::vector<double> >& dataflowStages,
                               std::vector<double>& dataFlowMatrix,
                               bool calcTrainGradients,
                               double nesterovAdj);
-
-  void flowDataThroughNetwork(std::vector<std::vector<double> >& dataflowStages,
-                              std::vector<double>& dataFlowMatrix,
-                              bool calcTrainGradients,
-                              double nesterovAdj,
-                              std::vector<std::vector<int> >& dropouts);
-
 
 public:
   backpropper(Nnet *net);
@@ -104,7 +92,7 @@ public:
   void setLossType(std::string lossType);
   std::string getLossType();
 
-  bool setTestData(Dataset *testdata);
+  bool setTestData(Dataset& testdata);
   void doTestCost(bool doTestCost = true);
   // Preprocessing methods on Train Data
 
@@ -116,8 +104,6 @@ public:
   void setShuffleData(bool doShuffle = true);
 
   // Backpropagation stuff
-  void doDropout(bool doDropout);
-  void setDropoutRates(double inputDropout, double hiddenDropout);
   void setMomentum(bool doMomentum,
                    double momMu,
                    double momDecay,
@@ -126,16 +112,10 @@ public:
 
 
   void initialiseWeights(initialiseType initialtype = INIT_CONST_TYPE, double param1 = 0.0);
-  void setDropout(bool doDropout);
 
   // Feed forward
   void feedForwardTrainData(bool calcGradients = false,
                             double nestorovAdj = 0.0);
-  void feedForwardTrainData(bool calcGradients,
-                            double nestorovAdj,
-                            std::vector<std::vector<int> >& dropouts);
-
-
 
   bool doBackPropOptimise(size_t nBatchIndicator,
                           double wgtLearnRate,
