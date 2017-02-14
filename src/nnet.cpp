@@ -1061,35 +1061,59 @@ Nnet::Nnet(Rcpp::IntegerVector networkgeometry,
 
 
 RCPP_MODULE(af_nnet) {
-/*
-  Rcpp::class_<Nnet>("Nnet")
+  /*
+   Rcpp::class_<Nnet>("Nnet")
 
-  .constructor<Rcpp::IntegerVector , Rcpp::String, Rcpp::String >("net geometry; hidden unit activation; output unit type")
+   .constructor<Rcpp::IntegerVector , Rcpp::String, Rcpp::String >("net geometry; hidden unit activation; output unit type")
 
-  .property("HiddenLayers",&Nnet::getHiddenLayerSizes, &Nnet::setHiddenLayerSizes, "Vector of Hidden layer sizes")
-  .property("actType", &Nnet::getActivationType, &Nnet::setActivationType,"Hidden layer activation type")
-  .property("outType",&Nnet::getOutputType , &Nnet::setOutputType, "Output Unit Type")
+   .property("HiddenLayers",&Nnet::getHiddenLayerSizes, &Nnet::setHiddenLayerSizes, "Vector of Hidden layer sizes")
+   .property("actType", &Nnet::getActivationType, &Nnet::setActivationType,"Hidden layer activation type")
+   .property("outType",&Nnet::getOutputType , &Nnet::setOutputType, "Output Unit Type")
 
-  .method("printGeometry", &Nnet::printGeometry, "Print the data")
-  .method("clampData", &Nnet::clampData, "Clamp data")
+   .method("printGeometry", &Nnet::printGeometry, "Print the data")
+   .method("clampData", &Nnet::clampData, "Clamp data")
 
-  .property("dataLoaded",&Nnet::dataLoaded, "is data loaded (clamped)")
-  .property("dataAndLabelsloaded",&Nnet::dataAndLabelsLoaded, "is data loaded (clamped) together with labels")
-  .property("nDataRecords",&Nnet::nDataRecords, "is data loaded (clamped)")
+   .property("dataLoaded",&Nnet::dataLoaded, "is data loaded (clamped)")
+   .property("dataAndLabelsloaded",&Nnet::dataAndLabelsLoaded, "is data loaded (clamped) together with labels")
+   .property("nDataRecords",&Nnet::nDataRecords, "is data loaded (clamped)")
 
-  ;
-*/
+   ;
+   */
   Rcpp::class_<Dataset>("Dataset")
-    .constructor<Rcpp::String,
-                 Rcpp::String,
-                 Rcpp::LogicalVector,
-                 Rcpp::String
-                  >("data and labels")
-    .method("print", &Dataset::printData, "Print the data")
-    .method("nrow",&Dataset::nRecords, "Number of records in the dataset")
-    .method("ncol",&Dataset::nFields, "Number of fields in the dataset")
-    .property("hasLabels", &Dataset::labelsLoaded, "Does the data have labels")
-    ;
+  .constructor<Rcpp::String,
+  Rcpp::String,
+  Rcpp::LogicalVector,
+  Rcpp::String
+  >("data and labels")
+
+  .property("hasLabels", &Dataset::labelsLoaded, "Does the data have labels?")
+  .property("dataLoaded", &Dataset::dataLoaded, "Is there data loaded?")
+  .property("nRecords", &Dataset::nRecords,"How many records are loaded?")
+  .property("nFields", &Dataset::nFields,"How many fields in the data?")
+  .property("nLabelFields", &Dataset::nLabelFields,"How many label fields in the data?")
+  .property("isPCA", &Dataset::isPcaDone,"Has PCA been performed on this dataset?")
+  .property("transformType", &Dataset::getNormType,"get the data transformation type, if there was one")
+  .property("paramsForTransform", &Dataset::getNormParamMat,"get the data transformation params, in a matrix")
+  .property("getData",&Dataset::getDataR, "get the data into R")
+  .property("getLabels",&Dataset::getLabelsR, "get the labels into R, if available")
+
+  .method("printData", &Dataset::printData, "Print the data")
+  .method("printLabels", &Dataset::printLabels, "Print the data labels, if available")
+
+  .method("nrow",&Dataset::nRecords, "Number of records in the dataset")
+  .method("ncol",&Dataset::nFields, "Number of fields in the dataset")
+
+  .method("doPCA",&Dataset::doPca, "Map data to its principle comps, with reduction if requested")
+  .method("isPCA",&Dataset::isPcaDone, "Has PCA been performed?")
+  .method("pcaMat", &Dataset::getPcaMatrixR,"get the PCA matrix if available")
+  .method("internalNorm",&Dataset::analyseAndNorm, "Normalise the data, with type snorm or range")
+  .method("paramNorm",&Dataset::normWithParams, "Normalise the data, with type snorm or range")
+  .method("copyTransform",&Dataset::normWithPrototype, "Transform dataset like given dataset")
+  ;
+
+
+
+
 
 
 }

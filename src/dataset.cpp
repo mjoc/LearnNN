@@ -53,8 +53,26 @@ void Dataset::setOutputFolder(char *filename){
   return;
 }
 
-Dataset::normDataType Dataset::getNormType() const {
-  return _normType;
+std::string Dataset::getNormType() const{
+  std::ostringstream normType;
+
+  switch (_normType) {
+  case DATA_STAN_NORM:
+    normType << "snorm";
+    break;
+  case DATA_RANGE_BOUND:
+    normType << "range";
+    break;
+  case DATA_NORM_NONE:
+    normType << "none";
+    break;
+  default:
+    normType <<  "unknown";
+  break;
+  }
+
+  return std::string(normType.str());
+
 }
 
 std::vector<double> Dataset::getNormParam1() const {
@@ -294,13 +312,29 @@ bool Dataset::isPcaDone() const {
   return _pcaDone;
 }
 
-void Dataset::analyseAndNorm(normDataType normType){
+void Dataset::analyseAndNorm(std::string normType){
+  normDataType internalNormType = DATA_NORM_NONE;
+
+  bool normTypeValid = false;
+  if(normType == "snorm"){
+    normTypeValid = true;
+    internalNormType = Dataset::DATA_STAN_NORM;
+  }
+  if(normType == "range"){
+    normTypeValid = true;
+    internalNormType = Dataset::DATA_RANGE_BOUND;
+  }
+
+  if(!normTypeValid){
+    msg::error(std::string("Invalid data normalisation, only 'snorm' or 'range'!\n"));
+  }
+
   std::ostringstream message;
   _normParam1.resize(_nFields,0.0);
   _normParam2.resize(_nFields,0.0);
   double delta;
   if(_dataLoaded && _normType == DATA_NORM_NONE){
-    switch (normType) {
+    switch (internalNormType) {
       case DATA_STAN_NORM:
         // Welfords Method for standard deviation
         for(int iCol = 0; iCol < _nFields; iCol++){
@@ -365,10 +399,10 @@ void Dataset::analyseAndNorm(normDataType normType){
   return;
 }
 
-void Dataset::normFromDataset(const Dataset& otherDataset){
-  std::ostringstream message;
+void Dataset::normWithPrototype(Dataset& otherDataset){
+ std::ostringstream message;
   if(_normType== DATA_NORM_NONE){
-    normFromParams(otherDataset.getNormType(), otherDataset.getNormParam1(), otherDataset.getNormParam2());
+    normWithParams(otherDataset.getNormType(), otherDataset.getNormParam1(), otherDataset.getNormParam2());
   }else{
     message <<"Already Normed some way so doing nothing!";
     msg::warn(message);
@@ -376,15 +410,32 @@ void Dataset::normFromDataset(const Dataset& otherDataset){
 }
 
 
-void Dataset::normFromParams(const normDataType normType, const std::vector<double>& params1, const std::vector<double>& params2){
+void Dataset::normWithParams(std::string normType, const std::vector<double>& params1, const std::vector<double>& params2){
   std::ostringstream message;
+
+  normDataType internalNormType = DATA_NORM_NONE;
+
+  bool normTypeValid = false;
+  if(normType == "snorm"){
+    normTypeValid = true;
+    internalNormType = Dataset::DATA_STAN_NORM;
+  }
+  if(normType == "range"){
+    normTypeValid = true;
+    internalNormType = Dataset::DATA_RANGE_BOUND;
+  }
+
+  if(!normTypeValid){
+    msg::error(std::string("Invalid data normalisation, only 'snorm' or 'range'!\n"));
+  }
+
   bool canDo = true;
   if(! _dataLoaded){
     message << "No non train data loaded\n";
     msg::warn(message);
     canDo = false;
   }
-  if(normType == DATA_NORM_NONE){
+  if(internalNormType == DATA_NORM_NONE){
     message << "Training data is not normed so cannot perform on other data\n";
     msg::error(message);
     canDo = false;
@@ -396,7 +447,7 @@ void Dataset::normFromParams(const normDataType normType, const std::vector<doub
   }
 
   if(canDo){
-    switch (normType) {
+    switch (internalNormType) {
       case DATA_STAN_NORM:
         for(int iCol = 0; iCol < _nFields; iCol++){
           for(int iRow = 0; iRow < _nRecords; iRow++){
@@ -497,37 +548,42 @@ std::vector<double> Dataset::getPcaMatrix() const{
   if(_pcaDone){
     return _pcaEigenMat;
   }else{
-    message << "No PCA matrix available!\n";
+    message << "No PCA matrix available1!\n";
     msg::error(message);
     return std::vector<double>();
   }
 }
 
-void Dataset::transformDataset(const Dataset& otherDataset){
+void Dataset::transformDataset( Dataset& otherDataset){
   if(otherDataset.isPcaDone()){
     doPcaProjection(otherDataset.getPcaMatrix(), otherDataset.nFields());
   }
-  if(otherDataset.getNormType() != DATA_NORM_NONE){
-    normFromDataset(otherDataset);
+  if(otherDataset.getNormType() != "none" and otherDataset.getNormType() != "unknown" ){
+    normWithPrototype(otherDataset);
   }
 }
+
 void Dataset::printData(int nRecordsToPrint = 10){
   std::ostringstream message;
-  size_t startRow = 0;
+  size_t startRow = 0, endRow = _nRecords-1;
   if(_dataLoaded){
     if(nRecordsToPrint == 0){
       nRecordsToPrint = _nRecords;
     }else{
       if(nRecordsToPrint < 0){
         nRecordsToPrint = -nRecordsToPrint;
-        startRow = std::max(0,(int)_nRecords - nRecordsToPrint + 1);
+        startRow = std::max(0,(int)_nRecords - nRecordsToPrint);
       }
 
       nRecordsToPrint = std::min(nRecordsToPrint, (int)_nRecords);
     }
+    endRow = std::min(startRow + nRecordsToPrint-1, _nRecords-1);
     message << "Printing Data" << std::endl;
     msg::info(message);
-    for(int iRow = startRow; iRow < nRecordsToPrint; iRow++){
+    message << "From " << startRow << " to " << endRow << std::endl;
+    msg::info(message);
+
+    for(int iRow = startRow; iRow <= endRow; iRow++){
       message << " Record " << iRow + 1 << ": \t";
       for(int iCol = 0; iCol < _nFields; iCol++){
         message << std::fixed;
@@ -545,8 +601,8 @@ void Dataset::printData(int nRecordsToPrint = 10){
 
 void Dataset::printLabels(int nRecordsToPrint){
   std::ostringstream message;
-  int startRow = 0;
-  if(_dataLoaded){
+  int startRow = 0, endRow = _nRecords-1;
+  if(_labelsLoaded){
     if(nRecordsToPrint == 0){
       nRecordsToPrint = _nRecords;
     }else{
@@ -556,9 +612,10 @@ void Dataset::printLabels(int nRecordsToPrint){
       }
       nRecordsToPrint = std::min(nRecordsToPrint, (int)_nRecords);
     }
+    endRow = std::min(startRow + nRecordsToPrint-1, (int)_nRecords-1);
     message << "Printing Labels" << std::endl;
     msg::info(message);
-    for(int iRow = 0; iRow < nRecordsToPrint; iRow++){
+    for(int iRow = startRow; iRow <= endRow; iRow++){
       message << "Record " << iRow + 1 << ": ";
       for(int iCol = 0; iCol < _nLabelFields; iCol++){
         message << _labels[(iCol* _nRecords)+iRow] << " | ";
@@ -592,7 +649,8 @@ Dataset::Dataset(Rcpp::String dataFileName, Rcpp::String labelsFileName, Rcpp::L
   bool allOk = true;
   const char *delimiter = delim.get_cstring();
   char delimiter2 = *delimiter;
-  bool hasHeader2 = hasHeader[0]==FALSE;
+  bool hasHeader2 = (hasHeader[0]==FALSE) ? false : true;
+
   _dataLoaded = false;
   _labelsLoaded = false;
   _nRecords = 0;
@@ -604,6 +662,11 @@ Dataset::Dataset(Rcpp::String dataFileName, Rcpp::String labelsFileName, Rcpp::L
   _pcaDone = false;
   _pcaEigenMatLoaded = false;
   _nPcaDimensions = 0;
+  if(hasHeader2){
+    msg::info("Header\n");
+  }else{
+    msg::info("No Header\n");
+  }
   allOk = loadDataFromFile(dataFileName.get_cstring(), hasHeader2, delimiter2);
   if(allOk){
     allOk = loadLabelsFromFile(labelsFileName.get_cstring(), hasHeader2, delimiter2);
@@ -614,6 +677,45 @@ Dataset::Dataset(Rcpp::String dataFileName, Rcpp::String labelsFileName, Rcpp::L
 
   _outputDir = "~/";
 }
+
+SEXP Dataset::getDataR(){
+  if(_dataLoaded){
+    return Rcpp::NumericMatrix( _nRecords , _nFields , _data.begin());
+  }else{
+    return R_NilValue;
+  }
+}
+
+SEXP Dataset::getLabelsR(){
+  if(_labelsLoaded){
+    return Rcpp::NumericMatrix( _nRecords , _nLabelFields , _labels.begin());
+  }else{
+    return R_NilValue;
+  }
+}
+
+SEXP Dataset::getPcaMatrixR(){
+  std::ostringstream message;
+  if(_pcaDone){
+    return Rcpp::NumericMatrix( _nPcaDimensions , _nPcaDimensions , _pcaEigenMat.begin());
+  }else{
+    message << "No PCA matrix available2!\n";
+    msg::error(message);
+    return R_NilValue;
+  }
+}
+
+Rcpp::NumericMatrix Dataset::getNormParamMat() const {
+  Rcpp::NumericMatrix params( 2 , _normParam1.size() );
+
+  for(int iParam = 0; iParam < _normParam1.size(); iParam++){
+    params(0,iParam) = _normParam1[iParam];
+    params(1,iParam) = _normParam2[iParam];
+  }
+  return params;
+}
+
+
 
 // Dataset::Dataset(Rcpp::NumericMatrix data, Rcpp::NumericMatrix labels){
 // _outputDir = "~/";

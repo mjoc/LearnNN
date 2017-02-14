@@ -12,6 +12,9 @@
 #include <vector>
 #include "Rcpp.h"
 
+class Dataset; // fwd declarations
+RCPP_EXPOSED_CLASS(Dataset);
+
 class Dataset{
 public:
   enum normDataType
@@ -66,9 +69,10 @@ public:
   bool dataLoaded() const;
   bool labelsLoaded() const;
 
-  void analyseAndNorm(normDataType normType);
-  void normFromParams(const normDataType normType,const  std::vector<double>& params1, const std::vector<double>& params2);
-  void normFromDataset(const Dataset& otherDataset);
+  void analyseAndNorm(std::string normType);
+  void normWithParams(std::string normType, const  std::vector<double>& params1, const std::vector<double>& params2);
+  void normWithPrototype(Dataset& otherDataset);
+
 
   void doPca(size_t dimensions = 0);
   void doPcaProjection(std::vector<double> pcaEigenMat,
@@ -78,7 +82,7 @@ public:
 
   bool isPcaDone() const;
 
-  void transformDataset(const Dataset& otherDataset);
+  void transformDataset(Dataset& otherDataset);
 
   void printData(int nRecords);
 
@@ -93,9 +97,15 @@ public:
   std::vector<double>* labels();
   std::vector<double> getPcaMatrix() const;
 
-  normDataType getNormType() const;
+  std::string getNormType() const;
   std::vector<double> getNormParam1() const;
   std::vector<double> getNormParam2() const;
+
+
+  SEXP getDataR();
+  SEXP getLabelsR();
+  SEXP getPcaMatrixR();
+  Rcpp::NumericMatrix getNormParamMat() const;
 
 };
 
