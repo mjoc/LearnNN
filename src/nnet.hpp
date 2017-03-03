@@ -70,7 +70,9 @@ public:
   Nnet(std::vector<int> networkgeometry,
        std::string hiddenUnitActivation = std::string("linear"),
        std::string outputUnitActivation = std::string("linear"));
-
+  Nnet(Rcpp::IntegerVector networkgeometry,
+        Rcpp::String hiddenUnitActivation,
+        Rcpp::String outputUnitActivation);
   ~Nnet();
 
 
@@ -86,9 +88,9 @@ public:
                               char *labelsFileName,
                               bool hasHeader,
                               char delim);
-  
+
   bool clampData(Dataset& dataset);
-  
+
   bool dataLoaded();
   bool dataAndLabelsLoaded();
   size_t nDataRecords();
@@ -110,9 +112,11 @@ public:
   void initialiseWeights();
   void feedForward();
 
+
   //Informational queries
   bool numericLabels();
   bool classLabels();
+  bool labelsGenerated();
 
   // Write to file
   void setOutputFolder(char *filename);
@@ -136,7 +140,7 @@ public:
   //void clampData(Rcpp::NumericMatrix inputData,
    //               Rcpp::NumericMatrix dataLabels);
   //void clampData(Rcpp::NumericMatrix inputData);
-
+  SEXP generatedLabelsR() const;
 
 };
 

@@ -662,11 +662,7 @@ Dataset::Dataset(Rcpp::String dataFileName, Rcpp::String labelsFileName, Rcpp::L
   _pcaDone = false;
   _pcaEigenMatLoaded = false;
   _nPcaDimensions = 0;
-  if(hasHeader2){
-    msg::info("Header\n");
-  }else{
-    msg::info("No Header\n");
-  }
+
   allOk = loadDataFromFile(dataFileName.get_cstring(), hasHeader2, delimiter2);
   if(allOk){
     allOk = loadLabelsFromFile(labelsFileName.get_cstring(), hasHeader2, delimiter2);
@@ -695,12 +691,9 @@ SEXP Dataset::getLabelsR(){
 }
 
 SEXP Dataset::getPcaMatrixR(){
-  std::ostringstream message;
   if(_pcaDone){
     return Rcpp::NumericMatrix( _nPcaDimensions , _nPcaDimensions , _pcaEigenMat.begin());
   }else{
-    message << "No PCA matrix available2!\n";
-    msg::error(message);
     return R_NilValue;
   }
 }

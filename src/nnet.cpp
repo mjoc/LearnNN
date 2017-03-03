@@ -46,6 +46,7 @@ Nnet::Nnet(std::vector<int> networkgeometry,
   _dataLoaded = false;
   _dataLabelsLoaded = false;
   _nDataRecords = 0;
+  _labelsGenerated = false;
 
   _outputDir = "~/";
   //// END DEFAULTS ////
@@ -163,6 +164,10 @@ void Nnet::setHiddenLayerSizes(std::vector<int> layerSizes){
 
 std::vector<int> Nnet::getHiddenLayerSizes(){
   return _hiddenLayerSizes;
+}
+
+bool Nnet::labelsGenerated(){
+  return _labelsGenerated;
 }
 
 void Nnet::setActivationType(std::string activationType){
@@ -492,7 +497,7 @@ void Nnet::feedForward(){
     flowDataThroughNetwork(_inputData, _feedForwardValues, tempMatrixForLabels);
 
     _generatedLabels = tempMatrixForLabels;
-
+    msg::info(std::string("Here!\n"));
     _labelsGenerated = true;
   }else{
     if (!_dataLoaded){
@@ -917,7 +922,7 @@ void Nnet::printFeedForwardValues(int iIndex){
     msg::error(std::string("Invalid FF index!\n"));
   }
 }
-/*
+
 Nnet::Nnet(Rcpp::IntegerVector networkgeometry,
      Rcpp::String hiddenUnitActivation,
      Rcpp::String outputUnitActivation){
@@ -936,6 +941,7 @@ Nnet::Nnet(Rcpp::IntegerVector networkgeometry,
   _dataLoaded = false;
   _dataLabelsLoaded = false;
   _nDataRecords = 0;
+  _labelsGenerated = false;
 
   _outputDir = "~/";
   //// END DEFAULTS ////
@@ -1030,55 +1036,58 @@ Nnet::Nnet(Rcpp::IntegerVector networkgeometry,
     msg::error(std::string("Check the Activation Type, Output Type and Geometry\n"));
   }
 }
-*/
 
+SEXP Nnet::generatedLabelsR() const {
+  bool allOk = true;
+  if(!_labelsGenerated){
+    allOk = false;
+  }else{
+    if(_generatedLabels.size() == _nOutputUnits*_nDataRecords){
+      allOk = false;
+      msg::warn("Problem with generated labels, data not of expected size!");
+    }
+  }
+  if(allOk){
+    Rcpp::NumericMatrix generatedLabels( _nDataRecords , _nOutputUnits);
 
-//void Nnet::clampData(Rcpp::NumericMatrix inputData,
-//                Rcpp::NumericMatrix dataLabels){
-//  std::ostringstream message;
-//  bool allOk = true;
-//
-//  if(inputData.ncol() != _nInputUnits){
-//    message << "Input Units set to: " << _nInputUnits << "; columns in the input data: " << inputData.ncol() << " cannot clamp!\n";
-//    msg::error(message);
-//    allOk = false;
-//  }
-//  if(inputData.ncol() != _nInputUnits){
-//    message << "Output Units set to: " << _nInputUnits << "; columns in the label data: " << dataLabels.ncol() << " cannot clamp!\n";
-//    msg::error(message);
-//    allOk = false;
-//  }
-//  if(allOk){
-//    Dataset indata(inputData, dataLabels);
-//    setDataAndLabels(indata);
-//  }else{
-//    msg::error("Data clamp failed!");
-//  }
-//  return;
-//}
-
-
+    for(int iDatum = 0; iDatum < _nDataRecords; iDatum++){
+      for(int iUnit = 0; iUnit < _nOutputUnits; iUnit++){
+        generatedLabels(iDatum,iUnit) = _generatedLabels[iUnit*_nDataRecords + iDatum];
+      }
+    }
+    return generatedLabels;
+  }else{
+    return R_NilValue;
+  }
+}
 
 
 RCPP_MODULE(af_nnet) {
-  /*
+
    Rcpp::class_<Nnet>("Nnet")
 
    .constructor<Rcpp::IntegerVector , Rcpp::String, Rcpp::String >("net geometry; hidden unit activation; output unit type")
 
-   .property("HiddenLayers",&Nnet::getHiddenLayerSizes, &Nnet::setHiddenLayerSizes, "Vector of Hidden layer sizes")
+   .property("HiddenLayerSizes",&Nnet::getHiddenLayerSizes, &Nnet::setHiddenLayerSizes, "Vector of Hidden layer sizes")
    .property("actType", &Nnet::getActivationType, &Nnet::setActivationType,"Hidden layer activation type")
    .property("outType",&Nnet::getOutputType , &Nnet::setOutputType, "Output Unit Type")
 
-   .method("printGeometry", &Nnet::printGeometry, "Print the data")
-   .method("clampData", &Nnet::clampData, "Clamp data")
-
-   .property("dataLoaded",&Nnet::dataLoaded, "is data loaded (clamped)")
-   .property("dataAndLabelsloaded",&Nnet::dataAndLabelsLoaded, "is data loaded (clamped) together with labels")
+   .property("dataClamped",&Nnet::dataLoaded, "is data loaded (clamped)")
+   .property("dataClampedWithLabels",&Nnet::dataAndLabelsLoaded, "is data loaded (clamped) together with labels")
    .property("nDataRecords",&Nnet::nDataRecords, "is data loaded (clamped)")
+   .property("labelsGenerated",&Nnet::labelsGenerated, "have labels been generated")
+   .property("generatedLabels",&Nnet::generatedLabelsR, "Generated labels")
+
+    .method("printGeometry", &Nnet::printGeometry, "Print the data")
+    .method("clampData", &Nnet::clampData, "Clamp data")
+    .method("feedForward", & Nnet::feedForward, "feedforward")
+
 
    ;
-   */
+
+
+  //http://stackoverflow.com/questions/33549712/using-a-class-as-a-parameter-in-a-constructor-of-another-class
+
   Rcpp::class_<Dataset>("Dataset")
   .constructor<Rcpp::String,
   Rcpp::String,
@@ -1087,15 +1096,18 @@ RCPP_MODULE(af_nnet) {
   >("data and labels")
 
   .property("hasLabels", &Dataset::labelsLoaded, "Does the data have labels?")
-  .property("dataLoaded", &Dataset::dataLoaded, "Is there data loaded?")
+  .property("isDataLoaded", &Dataset::dataLoaded, "Is there data loaded?")
   .property("nRecords", &Dataset::nRecords,"How many records are loaded?")
   .property("nFields", &Dataset::nFields,"How many fields in the data?")
   .property("nLabelFields", &Dataset::nLabelFields,"How many label fields in the data?")
   .property("isPCA", &Dataset::isPcaDone,"Has PCA been performed on this dataset?")
+  .property("pcaMat", &Dataset::getPcaMatrixR,"get the PCA matrix if available")
   .property("transformType", &Dataset::getNormType,"get the data transformation type, if there was one")
   .property("paramsForTransform", &Dataset::getNormParamMat,"get the data transformation params, in a matrix")
-  .property("getData",&Dataset::getDataR, "get the data into R")
-  .property("getLabels",&Dataset::getLabelsR, "get the labels into R, if available")
+  .property("data",&Dataset::getDataR, "get the data into R")
+  .property("labels",&Dataset::getLabelsR, "get the labels into R, if available")
+
+
 
   .method("printData", &Dataset::printData, "Print the data")
   .method("printLabels", &Dataset::printLabels, "Print the data labels, if available")
@@ -1105,7 +1117,7 @@ RCPP_MODULE(af_nnet) {
 
   .method("doPCA",&Dataset::doPca, "Map data to its principle comps, with reduction if requested")
   .method("isPCA",&Dataset::isPcaDone, "Has PCA been performed?")
-  .method("pcaMat", &Dataset::getPcaMatrixR,"get the PCA matrix if available")
+
   .method("internalNorm",&Dataset::analyseAndNorm, "Normalise the data, with type snorm or range")
   .method("paramNorm",&Dataset::normWithParams, "Normalise the data, with type snorm or range")
   .method("copyTransform",&Dataset::normWithPrototype, "Transform dataset like given dataset")
