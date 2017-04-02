@@ -5,10 +5,8 @@
 #include <vector>
 
 class Nnet{
-  friend class backpropper;
+  friend class Backpropper;
 public:
-
-
   enum activationType
   {
     LIN_ACT_TYPE,
@@ -16,14 +14,11 @@ public:
     RELU_ACT_TYPE
   };
 
-
   enum outputType
   {
     LIN_OUT_TYPE,
     SMAX_OUT_TYPE
   };
-
-
 
 private:
   size_t _nInputUnits;
@@ -70,9 +65,7 @@ public:
   Nnet(std::vector<int> networkgeometry,
        std::string hiddenUnitActivation = std::string("linear"),
        std::string outputUnitActivation = std::string("linear"));
-  Nnet(Rcpp::IntegerVector networkgeometry,
-        Rcpp::String hiddenUnitActivation,
-        Rcpp::String outputUnitActivation);
+
   ~Nnet();
 
 
@@ -110,6 +103,8 @@ public:
   bool setDataAndLabels(Dataset dataToClamp);
 
   void initialiseWeights();
+  bool setWgtAndBias(int iIndex, std::vector<double> wgts, std::vector<double> bias);
+
   void feedForward();
 
 
@@ -134,14 +129,16 @@ public:
   void printFeedForwardValues(int iIndex);
 
   // R package stuff
-//  Nnet(Rcpp::IntegerVector networkgeometry,
-//       Rcpp::String hiddenUnitActivation,
-//       Rcpp::String outputUnitActivation);
-  //void clampData(Rcpp::NumericMatrix inputData,
-   //               Rcpp::NumericMatrix dataLabels);
-  //void clampData(Rcpp::NumericMatrix inputData);
-  SEXP generatedLabelsR() const;
+  #ifndef IGNORE_THIS_RCPP_CODE
+    Nnet(Rcpp::IntegerVector networkgeometry,
+       Rcpp::String hiddenUnitActivation,
+       Rcpp::String outputUnitActivation);
 
+  SEXP generatedLabelsR() const;
+  SEXP getWgtAndBiasR(int Index) const;
+  Rcpp::LogicalVector setWgtAndBiasR(int iIndex, Rcpp::NumericMatrix weights, Rcpp::NumericVector bias);
+  SEXP getFFValues(int iIndex) const;
+  #endif
 };
 
 #endif

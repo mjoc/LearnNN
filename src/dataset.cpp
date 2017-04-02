@@ -32,6 +32,8 @@ Dataset::Dataset(const char *dataFileName, const char *labelsFileName, bool hasH
   _pcaDone = false;
   _pcaEigenMatLoaded = false;
   _nPcaDimensions = 0;
+  _dataOriginFile = "";
+  _labelsOriginFile = "";
   allOk = loadDataFromFile(dataFileName, hasHeader, delimiter);
   if(allOk){
     allOk = loadLabelsFromFile(labelsFileName, hasHeader, delimiter);
@@ -41,10 +43,14 @@ Dataset::Dataset(const char *dataFileName, const char *labelsFileName, bool hasH
   }
 
   _outputDir = "~/";
+
 }
 
 
 Dataset::~Dataset(){
+  std::ostringstream message;
+  message << "Deleting a dataset with data form " << _dataOriginFile << " and labels from " <<  _labelsOriginFile << std::endl;
+  msg::info(message);
 }
 
 
@@ -183,6 +189,7 @@ bool Dataset::loadDataFromFile(const char *filename,
 
     message << "Read " << nRecords << " by " << nDelims + 1 << std::endl;
     msg::info(message);
+    _dataOriginFile = std::string(filename);
   }
   return allOk;
 };
@@ -215,7 +222,7 @@ bool Dataset::loadLabelsFromFile(const char *filename,
 
   if(allOk){
     message << "Reading in data from file " << filename << std::endl;
-    msg::error(message);
+    msg::info(message);
     if(hasHeader){
       std::string headerline;
       std::getline(infile, headerline);
@@ -285,6 +292,7 @@ bool Dataset::loadLabelsFromFile(const char *filename,
 
     message << "Read " << _labels.size() << " labels of " << nRecords << " by " << _nFields << std::endl;
     msg::info(message);
+    _labelsOriginFile = std::string(filename);
   }
   return allOk;
 };
@@ -330,8 +338,10 @@ void Dataset::analyseAndNorm(std::string normType){
   }
 
   std::ostringstream message;
-  _normParam1.resize(_nFields,0.0);
-  _normParam2.resize(_nFields,0.0);
+  _normParam1.resize(_nFields);
+  _normParam2.resize(_nFields);
+  std::fill(_normParam1.begin(),_normParam1.end(),0.0);
+  std::fill(_normParam2.begin(),_normParam2.end(),0.0);
   double delta;
   if(_dataLoaded && _normType == DATA_NORM_NONE){
     switch (internalNormType) {
@@ -568,7 +578,7 @@ void Dataset::printData(int nRecordsToPrint = 10){
   size_t startRow = 0, endRow = _nRecords-1;
   if(_dataLoaded){
     if(nRecordsToPrint == 0){
-      nRecordsToPrint = _nRecords;
+      nRecordsToPrint = (int)_nRecords;
     }else{
       if(nRecordsToPrint < 0){
         nRecordsToPrint = -nRecordsToPrint;
@@ -583,7 +593,7 @@ void Dataset::printData(int nRecordsToPrint = 10){
     message << "From " << startRow << " to " << endRow << std::endl;
     msg::info(message);
 
-    for(int iRow = startRow; iRow <= endRow; iRow++){
+    for(int iRow = (int)startRow; iRow <= endRow; iRow++){
       message << " Record " << iRow + 1 << ": \t";
       for(int iCol = 0; iCol < _nFields; iCol++){
         message << std::fixed;
@@ -601,10 +611,10 @@ void Dataset::printData(int nRecordsToPrint = 10){
 
 void Dataset::printLabels(int nRecordsToPrint){
   std::ostringstream message;
-  int startRow = 0, endRow = _nRecords-1;
+  int startRow = 0, endRow = (int)_nRecords-1;
   if(_labelsLoaded){
     if(nRecordsToPrint == 0){
-      nRecordsToPrint = _nRecords;
+      nRecordsToPrint = (int)_nRecords;
     }else{
       if(nRecordsToPrint < 0){
         nRecordsToPrint = -nRecordsToPrint;
@@ -645,6 +655,9 @@ void Dataset::writeData(){
 
 
 // For R interface
+
+ #ifndef IGNORE_THIS_RCPP_CODE
+
 Dataset::Dataset(Rcpp::String dataFileName, Rcpp::String labelsFileName, Rcpp::LogicalVector hasHeader, Rcpp::String delim){
   bool allOk = true;
   const char *delimiter = delim.get_cstring();
@@ -692,70 +705,30 @@ SEXP Dataset::getLabelsR(){
 
 SEXP Dataset::getPcaMatrixR(){
   if(_pcaDone){
-    return Rcpp::NumericMatrix( _nPcaDimensions , _nPcaDimensions , _pcaEigenMat.begin());
+    return Rcpp::NumericMatrix( _nPcaDimensions , (int)_nPcaDimensions , _pcaEigenMat.begin());
   }else{
     return R_NilValue;
   }
 }
 
-Rcpp::NumericMatrix Dataset::getNormParamMat() const {
-  Rcpp::NumericMatrix params( 2 , _normParam1.size() );
+SEXP Dataset::getNormParamMat() const {
+  if(_normParam1.size() > 0){
 
-  for(int iParam = 0; iParam < _normParam1.size(); iParam++){
-    params(0,iParam) = _normParam1[iParam];
-    params(1,iParam) = _normParam2[iParam];
+    Rcpp::NumericMatrix params( 2 , (int)_normParam1.size() );
+
+    for(int iParam = 0; iParam < _normParam1.size(); iParam++){
+      params(0,iParam) = _normParam1[iParam];
+      params(1,iParam) = _normParam2[iParam];
+    }
+    return params;
+  }else{
+    return R_NilValue;
   }
-  return params;
 }
 
+#endif
 
 
-// Dataset::Dataset(Rcpp::NumericMatrix data, Rcpp::NumericMatrix labels){
-// _outputDir = "~/";
-// bool allOk = true;
-// _dataLoaded = false;
-// _labelsLoaded = false;
-// _nRecords = 0;
-// _nFields = 0;
-// _nLabelFields = 0;
-// _nInputFields = 0;
-//
-// _normType = DATA_NORM_NONE;
-// _pcaDone = false;
-// _pcaEigenMatLoaded = false;
-// _nPcaDimensions = 0;
-//
-// if(allOk){
-// _nFields = data.ncol();
-// _nInputFields = _nFields;
-// _nRecords = data.nrow();
-//
-// _data.resize(_nInputFields*_nRecords);
-//
-// for(int iCol = 0; iCol < _nFields; iCol++){
-// for(int iRow = 0; iRow < _nRecords; iRow++){
-// //Switching from row major to column major
-// _data[iCol*_nRecords + iRow] = data(iRow,iCol);
-// }
-// }
-//
-// if(labels.nrow() > 0){
-// _nLabelFields = labels.ncol();
-// _labels.resize(_nRecords*_nLabelFields);
-//
-// for(int iCol = 0; iCol < _nFields; iCol++){
-// for(int iRow = 0; iRow < _nRecords; iRow++){
-// _labels[iCol*_nRecords + iRow] = labels(iRow,iCol);
-// }
-// }
-// _labelsLoaded = true;
-// }else{
-// _labels.resize(0);
-// }
-// _dataLoaded = true;
-// _dataSource = std::string("R");
-// _labelsSource = std::string("R");
-// }
-// }
+
 
 

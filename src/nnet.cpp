@@ -8,6 +8,7 @@
 #include "mat_ops.hpp"
 #include "nnet.hpp"
 #include "message.hpp"
+#include "backprop.hpp"
 
 #define MIN_DATA_RANGE 1e-4
 
@@ -28,7 +29,7 @@ Nnet::Nnet(){
   _outputDir = "~/";
 };
 
-Nnet::Nnet(std::vector<int> networkgeometry,
+Nnet::Nnet(std::vector<int> networkGeometry,
            std::string hiddenUnitActivation,
            std::string outputUnitActivation){
   std::ostringstream message;
@@ -81,13 +82,13 @@ Nnet::Nnet(std::vector<int> networkgeometry,
     msg::error(std::string("Invalid Output Unit Type, only 'linear' or 'softmax'!\n"));
   }
 
-  size_t nLayers = networkgeometry.size();
-  if (nLayers < 3){
+  size_t nLayers = networkGeometry.size();
+  if (nLayers < 2){
     msg::error(std::string("Network Geometry Size Vector is of size 1, needs to include at least input and output sizes!\n"));
     geometryValid = false;
   }else{
-    nInputSize = networkgeometry[0];
-    nOutputSize = networkgeometry[networkgeometry.size()-1];
+    nInputSize = networkGeometry[0];
+    nOutputSize = networkGeometry[networkGeometry.size()-1];
 
     if(nInputSize < 1){
       msg::error(std::string("Number of Input Units needs to be >0\n"));
@@ -98,12 +99,13 @@ Nnet::Nnet(std::vector<int> networkgeometry,
       geometryValid = false;
     }
     hiddenLayerSizes.resize(0);
-    for(size_t iHidden = 1; iHidden < networkgeometry.size()-1; iHidden++){
-      hiddenLayerSizes.push_back(networkgeometry[iHidden]);
-      if(networkgeometry[iHidden] < 1){
+    for(size_t iHidden = 1; iHidden < networkGeometry.size()-1; iHidden++){
+      if(networkGeometry[iHidden] < 1){
         geometryValid = false;
         msg::error(std::string("Network Geometry Size Vector contains 0!\n"));
         break;
+      }else{
+        hiddenLayerSizes.push_back(networkGeometry[iHidden]);
       }
     }
   }
@@ -123,9 +125,11 @@ Nnet::Nnet(std::vector<int> networkgeometry,
     if(_hiddenLayerSizes.size() > 0){
       for(int i = 0 ; i < _hiddenLayerSizes.size(); i++) {
         _hiddenWeights.resize(i+1);
-        _hiddenWeights[i].resize(nCurrentInputWidth*_hiddenLayerSizes[i], 0);
+        _hiddenWeights[i].resize(nCurrentInputWidth*_hiddenLayerSizes[i]);
         _hiddenBiases.resize(i+1);
-        _hiddenBiases[i].resize(_hiddenLayerSizes[i], 0);
+        _hiddenBiases[i].resize(_hiddenLayerSizes[i]);
+        std::fill(_hiddenWeights[i].begin(),_hiddenWeights[i].end(),0.0);
+        std::fill(_hiddenBiases[i].begin(),_hiddenBiases[i].end(),0.0);
         nCurrentInputWidth = _hiddenLayerSizes[i];
       }
     }
@@ -252,7 +256,7 @@ bool Nnet::clampData(Dataset& dataset){
   _dataLoaded = false;
   _nDataRecords = 0;
 
-  if(dataset.dataLoaded() || dataset.nRecords()==0){
+  if(dataset.dataLoaded() && dataset.nRecords()>0){
     if(dataset.nFields() == _nInputUnits){
       if(dataset.labelsLoaded()){
         if(dataset.nLabelFields() != _nOutputUnits){
@@ -275,20 +279,19 @@ bool Nnet::clampData(Dataset& dataset){
 
     _nDataRecords = dataset.nRecords();
     _dataLoaded = true;
-    }
+
     if(dataset.labelsLoaded()){
       _dataLabels = dataset.labels();
       _nOutputUnits = dataset.nLabelFields();
       _dataLabelsLoaded = true;
 
-      _outputWeights.resize(_nInputUnits * _nOutputUnits, 0);
-      _outputBiases.resize(_nOutputUnits, 0);
-      message << "Loaded " << _nDataRecords << " data records and labels\n";
+      message << "Loaded " << _nDataRecords << " data records with labels\n";
       msg::info(message);
     }else{
       message << "Loaded " << _nDataRecords << " unlabeled data records\n";
       msg::info(message);
     }
+  }
   return allOk;
 }
 
@@ -335,7 +338,6 @@ void Nnet::activateUnits(std::vector<double>& values){
   switch (_activationType){
     case Nnet::TANH_ACT_TYPE:
       for (int i= 0; i < values.size(); i++) {
-
         values[i] =  tanh(values[i]);
       }
       break;
@@ -407,17 +409,100 @@ void Nnet::initialiseWeights(){
       _hiddenWeights.resize(i+1);
       _hiddenWeights[i].resize(nCurrentInputWidth*_hiddenLayerSizes[i], 0);
       _hiddenBiases.resize(i+1);
-      _hiddenBiases[i].resize(_hiddenLayerSizes[i], 0);
+      _hiddenBiases[i].resize(_hiddenLayerSizes[i]);
       nCurrentInputWidth = _hiddenLayerSizes[i];
+      std::fill(_hiddenWeights[i].begin(),_hiddenWeights[i].end(),0.0);
+      std::fill(_hiddenBiases[i].begin(),_hiddenBiases[i].end(),0.0);
     }
   }
 
   if(_nOutputUnits > 0){
-    _outputWeights.resize(nCurrentInputWidth * _nOutputUnits, 0);
-    _outputBiases.resize(_nOutputUnits, 0);
+    _outputWeights.resize(nCurrentInputWidth * _nOutputUnits);
+    _outputBiases.resize(_nOutputUnits);
+    std::fill(_outputWeights.begin(),_outputWeights.end(),0.0);
+    std::fill(_outputBiases.begin(),_outputBiases.end(),0.0);
   }
   return;
 }
+
+bool Nnet::setWgtAndBias(int iIndex, std::vector<double> weights, std::vector<double> bias){
+  bool   allOk = true;
+  bool doOutputWeights = false;
+  std::vector<double> *wgts_ptr = NULL;
+  std::vector<double> *biases_ptr = NULL;
+  std::ostringstream message;
+
+  if(iIndex < 0){
+    msg::error(std::string("Invalid index, less than 0\n"));
+    allOk = false;
+  }
+  if(allOk){
+    if (iIndex > _hiddenWeights.size()){
+      message << "Invalid index, greater than " << _hiddenWeights.size() << std::endl;
+      msg::error(message);
+      allOk = false;
+    }
+  }
+
+  if(allOk){
+    // Convert from R 1 index to C++ 0 index
+
+    if(iIndex == _hiddenWeights.size()){
+      doOutputWeights = true;
+      wgts_ptr = &_outputWeights;
+      biases_ptr = &_outputBiases;
+    }else{
+      wgts_ptr = &_hiddenWeights[iIndex];
+      biases_ptr = &_hiddenBiases[iIndex];
+    }
+  }
+
+  size_t nRows = 0;
+  size_t nCols = 0;
+
+  if(allOk){
+    if(iIndex == 0){
+      nRows = _nInputUnits;
+    }else{
+      nRows = _hiddenLayerSizes[iIndex-1];
+    }
+    if(doOutputWeights){
+      nCols = _nOutputUnits;
+    }else{
+      nCols = _hiddenLayerSizes[iIndex];
+    }
+  }
+  if(allOk){
+    if(nRows * nCols !=  weights.size()) {
+      message << "Weights matrix expected to be " << nRows << " by " << nCols << " but found to be " << weights.size() << std::endl;
+      msg::error(message);
+      allOk = false;
+    }
+  }
+  if(allOk){
+    if(nCols != bias.size()){
+      message << "Bias vector expected to be " << nCols << " but found to be " << bias.size() << std::endl;
+      msg::error(message);
+      allOk = false;
+    }
+  }
+  if(allOk){
+    for(int iRow = 0; iRow < nRows; iRow++){
+      for(int iCol = 0; iCol < nCols; iCol++){
+        (*wgts_ptr)[iCol*nRows+iRow] = weights[(iCol*nRows)+iRow];
+      }
+    }
+
+    for(int iBias = 0; iBias < nCols; iBias++){
+      (*biases_ptr)[iBias] = bias[iBias];
+    }
+  }
+  return allOk;
+}
+
+
+
+
 
 void Nnet::flowDataThroughNetwork(std::vector<double>* inputDataMatrix,
                                   std::vector<std::vector<double> >& dataflowStages,
@@ -458,21 +543,28 @@ void Nnet::flowDataThroughNetwork(std::vector<double>* inputDataMatrix,
 
   //  std::cout << "Feed forward: calculating output layer " << std::endl;
   nWeightsCols =  _nOutputUnits;
-  dataflowMatrix.resize(0);
-  dataflowMatrix = _outputBiases;
-  dataflowMatrix.resize(nInputRows*_outputBiases.size());
+  dataflowMatrix.assign(nInputRows*_outputBiases.size(),0.0);
   for(int iRow = 0; iRow < nInputRows; ++iRow){
     for(int iCol = 0; iCol <  _outputBiases.size(); iCol++){
       dataflowMatrix[(iCol*nInputRows) + iRow] = _outputBiases[iCol];
     }
   }
+  if(_hiddenLayerSizes.size()>0){
+    mat_ops::matMul(nInputRows,
+                    nInputCols ,
+                    dataflowStages[dataflowStages.size()-1] ,
+                    nWeightsCols,
+                    _outputWeights,
+                    dataflowMatrix);
+  }else{
+    mat_ops::matMul(nInputRows,
+                    nInputCols ,
+                    (*inputDataMatrix) ,
+                    nWeightsCols,
+                    _outputWeights,
+                    dataflowMatrix);
 
-  mat_ops::matMul(nInputRows,
-                  nInputCols ,
-                  dataflowStages[dataflowStages.size()-1] ,
-                  nWeightsCols,
-                  _outputWeights,
-                  dataflowMatrix);
+  }
 
   activateOutput(dataflowMatrix);
 
@@ -497,7 +589,6 @@ void Nnet::feedForward(){
     flowDataThroughNetwork(_inputData, _feedForwardValues, tempMatrixForLabels);
 
     _generatedLabels = tempMatrixForLabels;
-    msg::info(std::string("Here!\n"));
     _labelsGenerated = true;
   }else{
     if (!_dataLoaded){
@@ -507,175 +598,6 @@ void Nnet::feedForward(){
   //printOutValues();
   return;
 }
-
-//bool Nnet::loadDataFromFile(char *filename, bool hasHeader, char delim){
-//  bool allOk = true;
-//  bool first = true;
-//  int nRecords = 0;
-//  size_t nDelims = 0;
-//  std::vector<double> indata;
-//
-//  _dataLoaded = false;
-//  _dataLoaded = false;
-//
-//  _nDataRecords = 0;
-//  _trainDataNormType = Nnet::DATA_NORM_NONE;
-//  _dataPCA = false;
-//
-//  std::ifstream infile(filename, std::ios_base::in);
-//
-//  if (!infile.is_open()){
-//    allOk = false;
-//  }else{
-//    std::cout << "Reading in data from file " << filename << std::endl;
-//    _feedForwardValues.resize(1);
-//    _feedForwardValues[0].resize(0);
-//    if(hasHeader){
-//      std::string headerline;
-//      std::getline(infile, headerline);
-//      nDelims = std::count(headerline.begin(), headerline.end(), delim);
-//      first = false;
-//    }
-//    // http://stackoverflow.com/questions/18818777/c-program-for-reading-an-unknown-size-csv-file-filled-only-with-floats-with
-//
-//    for (std::string line; std::getline(infile, line); )
-//    {
-//      if(line.find_first_not_of(' ') == std::string::npos){
-//        break;
-//      }else{
-//        nRecords++;
-//        if(first){
-//          nDelims = std::count(line.begin(), line.end(), delim);
-//          first = false;
-//        }else{
-//          if(nDelims != std::count(line.begin(), line.end(), delim)){
-//            std::cout << "Problem with line " << nRecords << "; it has " << std::count(line.begin(), line.end(), delim) << " delimiters, expected " << nDelims << std::endl;
-//            allOk = false;
-//          }
-//        }
-//
-//        std::replace(line.begin(), line.end(), delim, ' ');
-//        std::istringstream in(line);
-//
-//
-//        if(allOk){
-//          std::vector<double> rowValues = std::vector<double>(std::istream_iterator<double>(in), std::istream_iterator<double>());
-//          for (std::vector<double>::const_iterator it(rowValues.begin()), end(rowValues.end()); it != end; ++it) {
-//            indata.push_back(*it);
-//          }
-//        }else{
-//          break;
-//        }
-//      }
-//    }
-//  }
-//  if(allOk){
-//    if((indata.size()% (nDelims+1)) != 0 ){
-//      std::cout << "Number of data is not an integer multiple of first line fields!\n";
-//      allOk = false;
-//    }
-//
-//  }
-//  if(allOk){
-//    _nDataRecords = nRecords;
-//    _nNonTrainDataInputUnits = nDelims + 1;
-//
-//    _feedForwardValues.resize(indata.size());
-//    for(size_t iCol = 0; iCol < _nNonTrainDataInputUnits; iCol++){
-//      for(size_t iRow = 0; iRow < _nDataRecords; iRow++){
-//        _feedForwardValues[0][iCol*_nDataRecords + iRow] = indata[ (iRow*_nNonTrainDataInputUnits) + iCol];
-//      }
-//    }
-//    _dataLoaded = true;
-//
-//    std::cout << "Read " << _feedForwardValues[0].size() << " data of " << nRecords << " by " << nDelims + 1 << std::endl;
-//  }
-//  return allOk;
-//};
-//
-//bool Nnet::loadNonTrainDataLabelsFromFile(char *filename, bool hasHeader, char delim){
-//  bool allOk = true;
-//  bool first = true;
-//  int nRecords = 0;
-//  size_t nDelims = 0;
-//  std::vector<double> indata;
-//
-//  _dataLoaded = false;
-//  _dataLabels.resize(0);
-//
-//  std::ifstream infile(filename, std::ios_base::in);
-//
-//  if (!infile.is_open()){
-//    allOk = false;
-//  }else{
-//    std::cout << "Reading in data from file " << filename << std::endl;
-//    if(hasHeader){
-//      std::string headerline;
-//      std::getline(infile, headerline);
-//      nDelims = std::count(headerline.begin(), headerline.end(), delim);
-//      first = false;
-//    }
-//    // http://stackoverflow.com/questions/18818777/c-program-for-reading-an-unknown-size-csv-file-filled-only-with-floats-with
-//
-//    for (std::string line; std::getline(infile, line); )
-//    {
-//      if(line.find_first_not_of(' ') == std::string::npos){
-//        break;
-//      }else{
-//        nRecords++;
-//        if(first){
-//          nDelims = std::count(line.begin(), line.end(), delim);
-//          first = false;
-//        }else{
-//          if(nDelims != std::count(line.begin(), line.end(), delim)){
-//            std::cout << "Problem with line " << nRecords << "; it has " << std::count(line.begin(), line.end(), delim) << " delimiters, expected " << nDelims << std::endl;
-//            allOk = false;
-//          }
-//        }
-//
-//        std::replace(line.begin(), line.end(), delim, ' ');
-//        std::istringstream in(line);
-//
-//        if(allOk){
-//          std::vector<int> rowValues = std::vector<int>(std::istream_iterator<int>(in), std::istream_iterator<int>());
-//          for (std::vector<int>::const_iterator it(rowValues.begin()), end(rowValues.end()); it != end; ++it) {
-//            indata.push_back(*it);
-//          }
-//        }else{
-//          break;
-//        }
-//      }
-//    }
-//  }
-//
-//  if(allOk){
-//    if((indata.size()% (nDelims+1)) != 0 ){
-//      std::cout << "Number of data is not an integer multiple of first line fields!" << std::endl;
-//      allOk = false;
-//    }
-//    if(indata.size() != _nDataRecords * (nDelims+1)){
-//      std::cout << "Expected " << _nDataRecords * (nDelims+1) << "Labels, got " << indata.size() << "!" << std::endl;
-//      allOk = false;
-//    }
-//  }
-//
-//  if(allOk){
-//    _nNonTrainDataOutputUnits = nDelims + 1;
-//    _dataLabels.resize(indata.size());
-//
-//    // Flip from row major to column major
-//    for(size_t iCol = 0; iCol < _nNonTrainDataOutputUnits; iCol++){
-//      for(size_t iRow = 0; iRow < _nDataRecords; iRow++){
-//        _dataLabels[iCol*_nDataRecords + iRow] = indata[iRow*_nNonTrainDataOutputUnits + iCol];
-//      }
-//    }
-//
-//    _dataLoaded = true;
-//
-//    std::cout << "Read " << _dataLabels.size() << " labels of " << nRecords << " by " << _nOutputUnits << std::endl;
-//  }
-//  return allOk;
-//};
 
 void Nnet::writeWeights(){
   size_t nRows = 0, nCols = 0;
@@ -706,12 +628,7 @@ void Nnet::writeFeedForwardValues(){
   size_t nCols = 0;
 
   for(int i = 0; i < _feedForwardValues.size(); i++){
-    if(i == 0){
-      nCols = _nInputUnits;
-    }else{
-      nCols = _hiddenLayerSizes[i -1];
-    }
-
+    nCols = _hiddenLayerSizes[i];
     std::ostringstream oss;
     oss << _outputDir << "feedforward" << i << ".csv";
     mat_ops::writeMatrix(oss.str(), _feedForwardValues[i],_nDataRecords,nCols);
@@ -798,7 +715,7 @@ void Nnet::printWeights(int iWeightsIndex){
         message << "| " ;
         for(int iCol = 0; iCol < nCols; iCol++){
           message << std::fixed;
-          message << std::setprecision(2) << _hiddenWeights[iWeightsIndex][iRow*nCols+iCol] << " | ";
+          message << std::setprecision(2) << _hiddenWeights[iWeightsIndex][iCol*nRows+iRow] << " | ";
         }
         message << std::endl;
         msg::info(message);
@@ -822,7 +739,11 @@ void Nnet::printWeights(int iWeightsIndex){
       msg::error(std::string("Invalid Bias index!\n"));
     }
   }else{
-    msg::error(std::string("Invalid layer index!\n"));
+    if(iWeightsIndex == _hiddenWeights.size()){
+      printOutputWeights();
+    }else{
+      msg::error(std::string("Invalid layer index!\n"));
+    }
   }
 }
 
@@ -845,7 +766,7 @@ void Nnet::printOutputWeights(){
       message << "| " ;
       for(int iCol = 0; iCol < nCols; iCol++){
         message << std::fixed;
-        message << std::setprecision(2) << _outputWeights[iRow*nCols+iCol] << " | ";
+        message << std::setprecision(2) << _outputWeights[iCol*nRows+iRow] << " | ";
       }
       message << std::endl;
       msg::info(message);
@@ -890,26 +811,22 @@ void Nnet::printOutputUnitValues(size_t nRecords){
   }
 }
 
-/* FIX THIS TO COLUMN MAJOR */
+
 void Nnet::printFeedForwardValues(int iIndex){
   std::ostringstream message;
   size_t nRows = 0;
   size_t nCols = 0;
-  if(iIndex < _feedForwardValues.size()){
+  if(iIndex >= 0 && iIndex < _feedForwardValues.size()){
     message << "FF " << iIndex << " ";;
     nRows = _nDataRecords;
-    if(iIndex == 0){
-      nCols = _nInputUnits;
-    }else{
-      nCols = _hiddenLayerSizes[iIndex -1];
-    }
+    nCols = _hiddenLayerSizes[iIndex];
     if(nRows * nCols ==  _feedForwardValues[iIndex].size()){
       message << "( " << nRows << " x " << nCols << " )" << std::endl;
       for(int iRow = 0; iRow < nRows; iRow++){
         message << "| " ;
         for(int iCol = 0; iCol < nCols; iCol++){
           message << std::fixed;
-          message << std::setprecision(2) << _feedForwardValues[iIndex][iRow*nCols+iCol] << " | ";
+          message << std::setprecision(2) << _feedForwardValues[iIndex][iCol*nRows +iRow] << " | ";
         }
         message << std::endl;
         msg::info(message);
@@ -923,7 +840,11 @@ void Nnet::printFeedForwardValues(int iIndex){
   }
 }
 
-Nnet::Nnet(Rcpp::IntegerVector networkgeometry,
+//// RCPP stuff
+
+#ifndef IGNORE_THIS_RCPP_CODE
+
+Nnet::Nnet(Rcpp::IntegerVector networkGeometry,
      Rcpp::String hiddenUnitActivation,
      Rcpp::String outputUnitActivation){
   std::ostringstream message;
@@ -976,13 +897,13 @@ Nnet::Nnet(Rcpp::IntegerVector networkgeometry,
     msg::error(std::string("Invalid Output Unit Type, only 'linear' or 'softmax'!\n"));
   }
 
-  size_t nLayers = networkgeometry.length();
-  if (nLayers < 3){
+  size_t nLayers = networkGeometry.length();
+  if (nLayers < 2){
     msg::error(std::string("Network Geometry Size Vector is of size 1, needs to include at least input and output sizes!\n"));
     geometryValid = false;
   }else{
-    nInputSize = networkgeometry[0];
-    nOutputSize = networkgeometry[networkgeometry.length()-1];
+    nInputSize = networkGeometry[0];
+    nOutputSize = networkGeometry[networkGeometry.length()-1];
 
     if(nInputSize < 1){
       msg::error(std::string("Number of Input Units needs to be >0\n"));
@@ -993,9 +914,9 @@ Nnet::Nnet(Rcpp::IntegerVector networkgeometry,
       geometryValid = false;
     }
     hiddenLayerSizes.resize(0);
-    for(size_t iHidden = 1; iHidden < networkgeometry.length()-1; iHidden++){
-      hiddenLayerSizes.push_back(networkgeometry[iHidden]);
-      if(networkgeometry[iHidden] < 1){
+    for(size_t iHidden = 1; iHidden < networkGeometry.length()-1; iHidden++){
+      hiddenLayerSizes.push_back(networkGeometry[iHidden]);
+      if(networkGeometry[iHidden] < 1){
         geometryValid = false;
         msg::error(std::string("Network Geometry Size Vector contains 0!\n"));
         break;
@@ -1018,16 +939,20 @@ Nnet::Nnet(Rcpp::IntegerVector networkgeometry,
     if(_hiddenLayerSizes.size() > 0){
       for(int i = 0 ; i < _hiddenLayerSizes.size(); i++) {
         _hiddenWeights.resize(i+1);
-        _hiddenWeights[i].resize(nCurrentInputWidth*_hiddenLayerSizes[i], 0);
+        _hiddenWeights[i].resize(nCurrentInputWidth*_hiddenLayerSizes[i]);
         _hiddenBiases.resize(i+1);
         _hiddenBiases[i].resize(_hiddenLayerSizes[i], 0);
         nCurrentInputWidth = _hiddenLayerSizes[i];
+        std::fill(_hiddenWeights[i].begin(),_hiddenWeights[i].end(),0.0);
+        std::fill(_hiddenBiases[i].begin(),_hiddenBiases[i].end(),0.0);
       }
     }
 
     if(_nOutputUnits > 0){
       _outputWeights.resize(nCurrentInputWidth * _nOutputUnits, 0);
       _outputBiases.resize(_nOutputUnits, 0);
+      std::fill(_outputWeights.begin(),_outputWeights.end(),0.0);
+      std::fill(_outputBiases.begin(),_outputBiases.end(),0.0);
     }
 
   }
@@ -1039,16 +964,18 @@ Nnet::Nnet(Rcpp::IntegerVector networkgeometry,
 
 SEXP Nnet::generatedLabelsR() const {
   bool allOk = true;
+  std::ostringstream message;
   if(!_labelsGenerated){
     allOk = false;
   }else{
-    if(_generatedLabels.size() == _nOutputUnits*_nDataRecords){
+    if(_generatedLabels.size() != _nOutputUnits*_nDataRecords){
       allOk = false;
-      msg::warn("Problem with generated labels, data not of expected size!");
+      message << "Problem with generated labels, expected size: " << _nOutputUnits*_nDataRecords << " but found size: " << _generatedLabels.size() << std::endl;
+      msg::warn(message);
     }
   }
   if(allOk){
-    Rcpp::NumericMatrix generatedLabels( _nDataRecords , _nOutputUnits);
+    Rcpp::NumericMatrix generatedLabels( _nDataRecords , (int)_nOutputUnits);
 
     for(int iDatum = 0; iDatum < _nDataRecords; iDatum++){
       for(int iUnit = 0; iUnit < _nOutputUnits; iUnit++){
@@ -1062,11 +989,213 @@ SEXP Nnet::generatedLabelsR() const {
 }
 
 
+
+SEXP Nnet::getWgtAndBiasR(int iIndex) const{
+  bool allOk = true;
+  bool doOutputWeights = false;
+  const std::vector<double> *wgts_ptr;
+  const std::vector<double> *biases_ptr;
+  std::ostringstream message;
+
+  // Convert from R 1 index to C++ 0 index
+  if(iIndex < 1){
+    msg::error(std::string("Invalid index, less than 1\n"));
+    allOk= false;
+  }
+  if(allOk){
+    if (iIndex > _hiddenWeights.size()+1){
+      message << "Invalid index, greater than " << _hiddenWeights.size() + 2 << std::endl;
+      msg::error(message);
+      allOk= false;
+    }
+  }
+
+  if(allOk){
+    iIndex = iIndex - 1;
+    if(iIndex == _hiddenWeights.size()){
+      doOutputWeights = true;
+      wgts_ptr = &_outputWeights;
+      biases_ptr = &_outputBiases;
+    }else{
+      wgts_ptr = &_hiddenWeights[iIndex];
+      biases_ptr = &_hiddenBiases[iIndex];
+    }
+  }
+
+  size_t nRows = 0;
+  size_t nCols = 0;
+
+  if(allOk){
+    if(iIndex == 0){
+      nRows = _nInputUnits;
+    }else{
+      nRows = _hiddenLayerSizes[iIndex-1];
+    }
+    if(doOutputWeights){
+      nCols = _nOutputUnits;
+    }else{
+      nCols = _hiddenLayerSizes[iIndex];
+    }
+  }
+  if(allOk){
+    if(nRows * nCols !=  wgts_ptr->size()) {
+      message << "Weights matrix expected to be " << nRows << " by " << nCols << " but found to be " << wgts_ptr->size() << std::endl;
+      msg::error(message);
+      allOk = false;
+    }
+  }
+  if(allOk){
+    if(nCols != biases_ptr->size()){
+      message << "Bias vector expected to be " << nCols << " but found to be " << biases_ptr->size() << std::endl;
+      msg::error(message);
+      allOk = false;
+    }
+  }
+  if(allOk){
+    Rcpp::NumericMatrix weightsMatrix((int)nRows , (int)nCols);
+    Rcpp::NumericVector biasVector((int)nCols);
+    for(int iRow = 0; iRow < nRows; iRow++){
+      for(int iCol = 0; iCol < nCols; iCol++){
+        weightsMatrix(iRow,iCol) =  (*wgts_ptr)[iCol*nRows+iRow];
+      }
+    }
+
+    for(int iBias = 0; iBias < nCols; iBias++){
+      biasVector(iBias) =  (*biases_ptr)[iBias];
+    }
+
+    Rcpp::List wgtAndBias = Rcpp::List::create(Rcpp::Named("weight") = weightsMatrix , Rcpp::Named("bias") = biasVector);
+    return wgtAndBias;
+  }else{
+    return R_NilValue;
+  }
+  return R_NilValue;
+}
+
+Rcpp::LogicalVector Nnet::setWgtAndBiasR(int iIndex, Rcpp::NumericMatrix weights, Rcpp::NumericVector bias){
+  bool allOk = true;
+  bool doOutputWeights = false;
+  std::vector<double> *wgts_ptr;
+  std::vector<double> *biases_ptr;
+  std::ostringstream message;
+
+  if(iIndex < 1){
+    msg::error(std::string("Invalid index, less than 1\n"));
+    allOk = false;
+  }
+  if(allOk){
+    if (iIndex > _hiddenWeights.size()+1){
+      message << "Invalid index, greater than " << _hiddenWeights.size() + 1 << std::endl;
+      msg::error(message);
+      allOk = false;
+    }
+  }
+
+  if(allOk){
+    // Convert from R 1 index to C++ 0 index
+    iIndex = iIndex - 1;
+    if(iIndex == _hiddenWeights.size()){
+      doOutputWeights = true;
+      wgts_ptr = &_outputWeights;
+      biases_ptr = &_outputBiases;
+    }else{
+      wgts_ptr = &_hiddenWeights[iIndex];
+      biases_ptr = &_hiddenBiases[iIndex];
+    }
+  }
+
+  size_t nRows = 0;
+  size_t nCols = 0;
+
+  if(allOk){
+    if(iIndex == 0){
+      nRows = _nInputUnits;
+    }else{
+      nRows = _hiddenLayerSizes[iIndex-1];
+    }
+    if(doOutputWeights){
+      nCols = _nOutputUnits;
+    }else{
+      nCols = _hiddenLayerSizes[iIndex];
+    }
+  }
+  if(allOk){
+    if(nRows * nCols !=  weights.length()) {
+      message << "Weights matrix expected to be " << nRows << " by " << nCols << " but found to be " << weights.length() << std::endl;
+      msg::error(message);
+      allOk = false;
+    }
+  }
+  if(allOk){
+    if(nCols != bias.length()){
+      message << "Bias vector expected to be " << nCols << " but found to be " << bias.length() << std::endl;
+      msg::error(message);
+      allOk = false;
+    }
+  }
+  if(allOk){
+    for(int iRow = 0; iRow < nRows; iRow++){
+      for(int iCol = 0; iCol < nCols; iCol++){
+        (*wgts_ptr)[iCol*nRows+iRow] = weights(iRow,iCol);
+      }
+    }
+
+    for(int iBias = 0; iBias < nCols; iBias++){
+      (*biases_ptr)[iBias] = bias(iBias);
+    }
+  }
+  return allOk;
+}
+
+
+
+SEXP Nnet::getFFValues(int iIndex) const{
+  bool allOk = true;
+  std::ostringstream message;
+  size_t nRows = 0;
+  size_t nCols = 0;
+  if(iIndex > _feedForwardValues.size()){
+    message << "Invalid FF index, should be at most " << _feedForwardValues.size() << std::endl;
+    msg::error(message);
+    allOk = false;
+  }
+  if(allOk && iIndex < 1){
+    msg::error(std::string("Invalid FF indexm should be greater than zero!\n"));
+    allOk = false;
+  }
+  if(allOk){
+    iIndex = iIndex - 1;
+    nRows = _nDataRecords;
+    nCols = _hiddenLayerSizes[iIndex];
+    if(nRows * nCols !=  _feedForwardValues[iIndex].size()){
+      message << "Error printing FF values " << nRows << " by " << nCols << " as it is actually " << _feedForwardValues[iIndex].size() << std::endl;
+      msg::error(message);
+      allOk = false;
+    }
+  }
+
+  if(allOk){
+    Rcpp::NumericMatrix feedforwardMatrix((int)nRows , (int)nCols);
+    for(int iRow = 0; iRow < nRows; iRow++){
+      message << "| " ;
+      for(int iCol = 0; iCol < nCols; iCol++){
+        feedforwardMatrix(iRow,iCol) =  _feedForwardValues[iIndex][iCol*nRows +iRow];
+      }
+    }
+    return feedforwardMatrix;
+  }
+  return R_NilValue;
+}
+
 RCPP_MODULE(af_nnet) {
 
    Rcpp::class_<Nnet>("Nnet")
 
-   .constructor<Rcpp::IntegerVector , Rcpp::String, Rcpp::String >("net geometry; hidden unit activation; output unit type")
+   .constructor<
+      Rcpp::IntegerVector ,
+      Rcpp::String,
+      Rcpp::String
+    >("net geometry; hidden unit activation; output unit type")
 
    .property("HiddenLayerSizes",&Nnet::getHiddenLayerSizes, &Nnet::setHiddenLayerSizes, "Vector of Hidden layer sizes")
    .property("actType", &Nnet::getActivationType, &Nnet::setActivationType,"Hidden layer activation type")
@@ -1081,18 +1210,20 @@ RCPP_MODULE(af_nnet) {
     .method("printGeometry", &Nnet::printGeometry, "Print the data")
     .method("clampData", &Nnet::clampData, "Clamp data")
     .method("feedForward", & Nnet::feedForward, "feedforward")
-
-
+    .method("getWeights", &Nnet::getWgtAndBiasR,"Using Index get weights and bias as a list")
+    .method("setWeights", &Nnet::setWgtAndBiasR, "Using Index set weights and bias as a list")
+    .method("getFedForward", &Nnet::getFFValues,"Using Index get feedforward values of the network")
    ;
 
 
   //http://stackoverflow.com/questions/33549712/using-a-class-as-a-parameter-in-a-constructor-of-another-class
 
   Rcpp::class_<Dataset>("Dataset")
-  .constructor<Rcpp::String,
-  Rcpp::String,
-  Rcpp::LogicalVector,
-  Rcpp::String
+    .constructor<
+    Rcpp::String,
+    Rcpp::String,
+    Rcpp::LogicalVector,
+    Rcpp::String
   >("data and labels")
 
   .property("hasLabels", &Dataset::labelsLoaded, "Does the data have labels?")
@@ -1104,10 +1235,8 @@ RCPP_MODULE(af_nnet) {
   .property("pcaMat", &Dataset::getPcaMatrixR,"get the PCA matrix if available")
   .property("transformType", &Dataset::getNormType,"get the data transformation type, if there was one")
   .property("paramsForTransform", &Dataset::getNormParamMat,"get the data transformation params, in a matrix")
-  .property("data",&Dataset::getDataR, "get the data into R")
-  .property("labels",&Dataset::getLabelsR, "get the labels into R, if available")
-
-
+  .property("data",&Dataset::getDataR, "Get the data into R")
+  .property("labels",&Dataset::getLabelsR, "Get the labels into R, if available")
 
   .method("printData", &Dataset::printData, "Print the data")
   .method("printLabels", &Dataset::printLabels, "Print the data labels, if available")
@@ -1124,11 +1253,19 @@ RCPP_MODULE(af_nnet) {
   ;
 
 
+  Rcpp::class_<Backpropper>("Backpropper")
+    .constructor<
+    Nnet&
+    >("Algorithm to find weights for a Neural Network")
 
+  .property("lossType", &Backpropper::getLossType, &Backpropper::setLossType, "Loss type for labels when training")
+  .property("cost",&Backpropper::calcCostR, "Cost")
 
+  .method("initWeights", &Backpropper::initialiseWeights, "Initialise the network weights")
+  .method("doBPOptim", &Backpropper::doBackPropOptimise, "Do Backprop Optimisation")
 
-
+    ;
 }
 
-
+#endif
 

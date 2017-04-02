@@ -10,10 +10,14 @@
 #define __MOC_dataset_hpp_
 
 #include <vector>
+
+#ifndef IGNORE_THIS_RCPP_CODE
 #include "Rcpp.h"
 
 class Dataset; // fwd declarations
 RCPP_EXPOSED_CLASS(Dataset);
+
+#endif
 
 class Dataset{
 public:
@@ -52,6 +56,8 @@ private:
                           bool hasHeader,
                           char delim);
 
+  std::string _dataOriginFile;
+  std::string _labelsOriginFile;
   // Writing out to file
   std::string _outputDir;
 
@@ -59,8 +65,7 @@ private:
 public:
   Dataset(const char *datafilename, const char *labelfilename, bool hasHeader, const char* delim);
   // For R
-  Dataset(Rcpp::String datafilename, Rcpp::String labelfilename, Rcpp::LogicalVector hasHeader, Rcpp::String delim);
-  ~Dataset();
+    ~Dataset();
   // Load data
 
   size_t nRecords() const;
@@ -101,11 +106,16 @@ public:
   std::vector<double> getNormParam1() const;
   std::vector<double> getNormParam2() const;
 
+// Rcpp stuff
+  #ifndef IGNORE_THIS_RCPP_CODE
 
+  Dataset(Rcpp::String datafilename, Rcpp::String labelfilename, Rcpp::LogicalVector hasHeader, Rcpp::String delim);
   SEXP getDataR();
   SEXP getLabelsR();
   SEXP getPcaMatrixR();
-  Rcpp::NumericMatrix getNormParamMat() const;
+  SEXP getNormParamMat() const;
+
+  #endif
 
 };
 

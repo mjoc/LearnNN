@@ -14,7 +14,15 @@
 #include "nnet.hpp"
 #include "rng.hpp"
 
-class backpropper{
+#ifndef IGNORE_THIS_RCPP_CODE
+
+class Nnet; // fwd declarations
+RCPP_EXPOSED_CLASS(Nnet);
+
+#endif
+
+
+class Backpropper{
 public:
   enum initialiseType
   {
@@ -83,8 +91,9 @@ private:
                               double nesterovAdj);
 
 public:
-  backpropper(Nnet *net);
-  ~backpropper();
+  Backpropper(Nnet &net);
+  Backpropper(Nnet &net, std::string lossType);
+  ~Backpropper();
 
   void setOutputFolder(char *filename);
   void setEpochPrintSchedule(size_t schedule);
@@ -111,13 +120,13 @@ public:
                    double momFinal);
 
 
-  void initialiseWeights(initialiseType initialtype = INIT_CONST_TYPE, double param1 = 0.0);
+  void initialiseWeights(std::string initialtype = "const", double param1 = 0.0);
 
   // Feed forward
   void feedForwardTrainData(bool calcGradients = false,
                             double nestorovAdj = 0.0);
 
-  bool doBackPropOptimise(size_t nBatchIndicator,
+  void doBackPropOptimise(size_t nBatchSize,
                           double wgtLearnRate,
                           double biasLearnRate,
                           size_t nEpoch);
@@ -135,6 +144,11 @@ public:
   void writeEpochCostUpdates();
   void writeEpochTrainCostUpdates();
   void writeEpochTestCostUpdates();
+
+  // Rcpp stuff
+#ifndef IGNORE_THIS_RCPP_CODE
+  SEXP calcCostR();
+#endif
 
 };
 
