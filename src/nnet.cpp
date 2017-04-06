@@ -1226,6 +1226,12 @@ RCPP_MODULE(af_nnet) {
     Rcpp::String
   >("data and labels")
 
+
+  .constructor<
+    Rcpp::NumericMatrix,
+    Rcpp::Nullable<Rcpp::NumericMatrix>
+  >("data and labels")
+
   .property("hasLabels", &Dataset::labelsLoaded, "Does the data have labels?")
   .property("isDataLoaded", &Dataset::dataLoaded, "Is there data loaded?")
   .property("nRecords", &Dataset::nRecords,"How many records are loaded?")

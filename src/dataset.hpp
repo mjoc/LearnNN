@@ -110,6 +110,8 @@ public:
   #ifndef IGNORE_THIS_RCPP_CODE
 
   Dataset(Rcpp::String datafilename, Rcpp::String labelfilename, Rcpp::LogicalVector hasHeader, Rcpp::String delim);
+  Dataset(Rcpp::NumericMatrix indata, Rcpp::Nullable<Rcpp::NumericMatrix> labels);
+  
   SEXP getDataR();
   SEXP getLabelsR();
   SEXP getPcaMatrixR();

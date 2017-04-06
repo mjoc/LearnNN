@@ -11,6 +11,7 @@
 #include <iomanip>
 #include <cmath>
 #include <string>
+#include <cstring>
 #include "dataset.hpp"
 #include "mat_ops.hpp"
 #include "message.hpp"
@@ -178,6 +179,7 @@ bool Dataset::loadDataFromFile(const char *filename,
     _nRecords = nRecords;
 
     _data.resize(indata.size());
+    std::fill(_data.begin(),_data.end(),0);
 
     for(size_t iCol = 0; iCol < _nFields; iCol++){
       for(size_t iRow = 0; iRow < _nRecords; iRow++){
@@ -678,7 +680,9 @@ Dataset::Dataset(Rcpp::String dataFileName, Rcpp::String labelsFileName, Rcpp::L
 
   allOk = loadDataFromFile(dataFileName.get_cstring(), hasHeader2, delimiter2);
   if(allOk){
-    allOk = loadLabelsFromFile(labelsFileName.get_cstring(), hasHeader2, delimiter2);
+    if(strlen(labelsFileName.get_cstring()) >0){
+      allOk = loadLabelsFromFile(labelsFileName.get_cstring(), hasHeader2, delimiter2);
+    }
   }
   if(allOk){
     _dataLoaded = true;
@@ -686,6 +690,64 @@ Dataset::Dataset(Rcpp::String dataFileName, Rcpp::String labelsFileName, Rcpp::L
 
   _outputDir = "~/";
 }
+
+Dataset::Dataset(Rcpp::NumericMatrix indata, Rcpp::Nullable<Rcpp::NumericMatrix> optional_labels){
+  bool allOk = true;
+  //std::ostringstream message;
+
+  _dataLoaded = false;
+  _labelsLoaded = false;
+  _nRecords = 0;
+  _nFields = 0;
+  _nLabelFields = 0;
+  _nInputFields = 0;
+
+  _normType = DATA_NORM_NONE;
+  _pcaDone = false;
+  _pcaEigenMatLoaded = false;
+  _nPcaDimensions = 0;
+
+  size_t nDataRow, nDataCol, nLabelsRow, nLabelsCol;
+  nDataRow = indata.nrow();
+  nDataCol = indata.ncol();
+
+
+  if(optional_labels.isNotNull()){
+    Rcpp::NumericMatrix labels(optional_labels);
+    nLabelsRow = labels.nrow();
+    nLabelsCol = labels.ncol();
+    if(nLabelsRow != nDataRow){
+      allOk = false;
+      msg::error("The number of rows of the labels does not equal the number of rows of the data, not loading data");
+    }else{
+      _labels.assign(nLabelsRow*nLabelsCol, 0.0);
+      for(int iCol = 0; iCol < nLabelsCol; iCol++){
+        for(int iRow = 0; iRow < nLabelsRow; iRow++){
+          _labels[iCol*nLabelsRow + iRow] = labels(iRow,iCol);
+        }
+      }
+      _labelsLoaded = true;
+    }
+  }
+  if(allOk){
+    _data.assign(nDataRow*nDataCol, 0.0);
+    for(int iCol = 0; iCol < nDataCol; iCol++){
+      for(int iRow = 0; iRow < nDataRow; iRow++){
+        _data[iCol*nDataRow + iRow] = indata(iRow,iCol);
+      }
+    }
+    _dataLoaded = true;
+    _nRecords =  nDataRow;
+    _nFields = nDataCol;
+    _nLabelFields = nLabelsCol;
+    _nInputFields = nDataCol;
+  }
+
+
+  _outputDir = "~/";
+
+}
+
 
 SEXP Dataset::getDataR(){
   if(_dataLoaded){
