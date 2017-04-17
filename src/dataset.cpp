@@ -50,7 +50,7 @@ Dataset::Dataset(const char *dataFileName, const char *labelsFileName, bool hasH
 
 Dataset::~Dataset(){
   std::ostringstream message;
-  message << "Deleting a dataset with data form " << _dataOriginFile << " and labels from " <<  _labelsOriginFile << std::endl;
+  message << "Deleting a dataset with data from " << _dataOriginFile << " and labels from " <<  _labelsOriginFile << std::endl;
   msg::info(message);
 }
 

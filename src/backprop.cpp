@@ -16,6 +16,8 @@
 #define BIAS_START 0.0
 
 Backpropper::Backpropper(Nnet &net){
+  std::ostringstream message;
+
   _net = &net;
   _rng = new rng;
   _outputDir = "~/";
@@ -35,11 +37,17 @@ Backpropper::Backpropper(Nnet &net){
   _nEpoch = 500;
 
   _trainDataShuffled = false;
+
+  // msg::info(std::string("Backpropper\n"));
+  // message << _hiddenGradients.size() << " " << std::endl;
+  // msg::info(message);
+  // message << "net._hiddenWeights.size() " << net._hiddenWeights.size() << std::endl;
+  // msg::info(message);
+
   _hiddenGradients.resize(0);
   _hiddenGradients.resize(net._hiddenWeights.size());
   for(int i = 0; i < net._hiddenWeights.size(); i++){
-    _hiddenGradients[i].resize(net._hiddenWeights[i].size());
-    std::fill(_hiddenGradients[i].begin(),_hiddenGradients[i].end(),0.0);
+    _hiddenGradients[i].assign(net._hiddenWeights[i].size(),0.0);
   }
 
   _testdataLoaded = false;

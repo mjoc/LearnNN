@@ -34,6 +34,8 @@ private:
   outputType _outputType;
 
 
+  Dataset* _clampedDataset = 0;
+  
   // Things to do with loaded Data
   bool _dataLabelsLoaded;
   bool _dataLoaded;
@@ -100,7 +102,7 @@ public:
   void setOutputType(std::string outputType);
   std::string getOutputType();
 
-  bool setDataAndLabels(Dataset dataToClamp);
+  //bool setDataAndLabels(Dataset dataToClamp);
 
   void initialiseWeights();
   bool setWgtAndBias(int iIndex, std::vector<double> wgts, std::vector<double> bias);

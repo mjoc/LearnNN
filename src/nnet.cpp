@@ -291,6 +291,13 @@ bool Nnet::clampData(Dataset& dataset){
       message << "Loaded " << _nDataRecords << " unlabeled data records\n";
       msg::info(message);
     }
+    _feedForwardValues.resize(0);
+    _clampedDataset = &dataset;
+  }else{
+    _dataLabelsLoaded = false;
+    _dataLoaded = false;
+    _nDataRecords = 0;
+    _clampedDataset = 0;
   }
   return allOk;
 }
@@ -304,35 +311,35 @@ size_t Nnet::nDataRecords(){
   return _nDataRecords;
 }
 
-bool Nnet::setDataAndLabels(Dataset dataToClamp){
-  bool allOk = true;
-
-  if(!dataToClamp.dataLoaded()){
-    allOk = false;
-  }
-  if(!dataToClamp.labelsLoaded()){
-    allOk = false;
-  }
-  if(dataToClamp.nFields() != _nInputUnits){
-    allOk = false;
-  }
-  if(dataToClamp.nLabelFields() != _nOutputUnits){
-    allOk = false;
-  }
-  if(allOk){
-    _feedForwardValues.resize(0);
-    _inputData = dataToClamp.data();
-    _nInputUnits = dataToClamp.nFields();
-    _nDataRecords = dataToClamp.nRecords();
-    _dataLoaded = true;
-
-    _dataLabels = dataToClamp.labels();
-    _nOutputUnits = dataToClamp.nLabelFields();
-    _dataLabelsLoaded = true;
-
-  }
-  return allOk;
-}
+//bool Nnet::setDataAndLabels(Dataset dataToClamp){
+//  bool allOk = true;
+//
+//  if(!dataToClamp.dataLoaded()){
+//    allOk = false;
+//  }
+//  if(!dataToClamp.labelsLoaded()){
+//    allOk = false;
+//  }
+//  if(dataToClamp.nFields() != _nInputUnits){
+//    allOk = false;
+//  }
+//  if(dataToClamp.nLabelFields() != _nOutputUnits){
+//    allOk = false;
+//  }
+//  if(allOk){
+//    _feedForwardValues.resize(0);
+//    _inputData = dataToClamp.data();
+//    _nInputUnits = dataToClamp.nFields();
+//    _nDataRecords = dataToClamp.nRecords();
+//    _dataLoaded = true;
+//
+//    _dataLabels = dataToClamp.labels();
+//    _nOutputUnits = dataToClamp.nLabelFields();
+//    _dataLabelsLoaded = true;
+//
+//  }
+//  return allOk;
+//}
 
 void Nnet::activateUnits(std::vector<double>& values){
   switch (_activationType){
