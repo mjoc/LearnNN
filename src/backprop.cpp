@@ -9,9 +9,14 @@
 #include "backprop.hpp"
 #include "mat_ops.hpp"
 #include "message.hpp"
+
 #include <cmath>
 #include <iomanip>
 #include <sstream>
+
+#ifndef IGNORE_THIS_RCPP_CODE
+#include "Rcpp.h"
+#endif
 
 #define BIAS_START 0.0
 
@@ -895,6 +900,9 @@ void Backpropper::doBackPropOptimise(size_t nBatchSizeRequested,
           }
         }
       }
+      #ifndef IGNORE_THIS_RCPP_CODE
+        Rcpp::checkUserInterrupt();
+      #endif
     }
   }
   if(allOk){
