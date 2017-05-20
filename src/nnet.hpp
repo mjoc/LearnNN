@@ -34,8 +34,8 @@ private:
   outputType _outputType;
 
 
-  Dataset* _clampedDataset = 0;
-  
+  Dataset* _clampedDataset;
+
   // Things to do with loaded Data
   bool _dataLabelsLoaded;
   bool _dataLoaded;
