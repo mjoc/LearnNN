@@ -51,7 +51,7 @@ Backpropper::Backpropper(Nnet &net){
 
   _hiddenGradients.resize(0);
   _hiddenGradients.resize(net._hiddenWeights.size());
-  for(int i = 0; i < net._hiddenWeights.size(); i++){
+  for(size_t i = 0; i < net._hiddenWeights.size(); i++){
     _hiddenGradients[i].assign(net._hiddenWeights[i].size(),0.0);
   }
 
@@ -81,7 +81,7 @@ Backpropper::Backpropper(Nnet &net, std::string lossType){
   _trainDataShuffled = false;
   _hiddenGradients.resize(0);
   _hiddenGradients.resize(net._hiddenWeights.size());
-  for(int i = 0; i < net._hiddenWeights.size(); i++){
+  for(size_t i = 0; i < net._hiddenWeights.size(); i++){
     _hiddenGradients[i].resize(net._hiddenWeights[i].size());
     std::fill(_hiddenGradients[i].begin(),_hiddenGradients[i].end(),0.0);
   }
@@ -209,7 +209,7 @@ void Backpropper::initialiseWeights(std::string initialtypeString, double param1
   switch (initialtype) {
     case INIT_CONST_TYPE:
       if(_net->_hiddenLayerSizes.size() > 0){
-        for(int i = 0 ; i < _net->_hiddenLayerSizes.size(); i++) {
+        for(size_t i = 0 ; i < _net->_hiddenLayerSizes.size(); i++) {
           _net->_hiddenWeights.resize(i+1);
           _net->_hiddenWeights[i].resize(nCurrentInputWidth*_net->_hiddenLayerSizes[i]);
           _net->_hiddenBiases.resize(i+1);
@@ -229,7 +229,7 @@ void Backpropper::initialiseWeights(std::string initialtypeString, double param1
       break;
     case INIT_GAUSS_TYPE:
       if(_net->_hiddenLayerSizes.size() > 0){
-        for(int i = 0 ; i < _net->_hiddenLayerSizes.size(); i++) {
+        for(size_t i = 0 ; i < _net->_hiddenLayerSizes.size(); i++) {
           _net->_hiddenWeights.resize(i+1);
           _net->_hiddenWeights[i].resize(nCurrentInputWidth*_net->_hiddenLayerSizes[i]);
           _rng->getGaussianVector(_net->_hiddenWeights[i], param1);
@@ -267,19 +267,19 @@ void Backpropper::shuffleTrainData(){
   iClassShuffle.resize(_net->_nOutputUnits);
   if(_net->dataAndLabelsLoaded()){
     if(_net->_nOutputUnits > 1){
-      for(int iLabelClass = 0; iLabelClass < _net->_nOutputUnits; iLabelClass++){
+      for(size_t iLabelClass = 0; iLabelClass < _net->_nOutputUnits; iLabelClass++){
         indataShuffle[iLabelClass].resize(0);
-        iClassShuffle[iLabelClass] = iLabelClass;
+        iClassShuffle[iLabelClass] = (int)iLabelClass;
       }
-      for(int iLabel = 0; iLabel < _net->_nDataRecords ; iLabel++ ){
-        for(int iLabelClass = 0; iLabelClass < _net->_nOutputUnits; iLabelClass++){
+      for(size_t iLabel = 0; iLabel < _net->_nDataRecords ; iLabel++ ){
+        for(size_t iLabelClass = 0; iLabelClass < _net->_nOutputUnits; iLabelClass++){
           if((*dataLabels)[iLabelClass * nDataRecords +  iLabel ] > 0.8){
             indataShuffle[iLabelClass].push_back(iLabel);
             break;
           }
         }
       }
-      for(int iLabelClass = 0; iLabelClass < _net->_nOutputUnits; iLabelClass++){
+      for(size_t iLabelClass = 0; iLabelClass < _net->_nOutputUnits; iLabelClass++){
         if(indataShuffle[iLabelClass].size() > 1){
           _rng->getShuffled(indataShuffle[iLabelClass]);
         }
@@ -289,13 +289,13 @@ void Backpropper::shuffleTrainData(){
       }
 
       size_t maxNumberInSingleClass = indataShuffle[0].size();
-      for(int iLabelClass = 0; iLabelClass < _net->_nOutputUnits; iLabelClass++){
+      for(size_t iLabelClass = 0; iLabelClass < _net->_nOutputUnits; iLabelClass++){
         maxNumberInSingleClass = indataShuffle[iLabelClass].size() > maxNumberInSingleClass ? indataShuffle[iLabelClass].size() : maxNumberInSingleClass;
       }
 
       _dataShuffleIndex.resize(0);
-      for(int iLabel = 0; iLabel < maxNumberInSingleClass; iLabel++ ){
-        for(int iLabelClass = 0; iLabelClass < _net->_nOutputUnits; iLabelClass++){
+      for(size_t iLabel = 0; iLabel < maxNumberInSingleClass; iLabel++ ){
+        for(size_t iLabelClass = 0; iLabelClass < _net->_nOutputUnits; iLabelClass++){
           if(iLabel < indataShuffle[iClassShuffle[iLabelClass]].size()){
             _dataShuffleIndex.push_back(indataShuffle[iClassShuffle[iLabelClass]][iLabel]);
           }
@@ -303,7 +303,7 @@ void Backpropper::shuffleTrainData(){
       }
     }else{
       _dataShuffleIndex.resize(_net->_nDataRecords);
-      for(int iRecord = 0; iRecord < _net->_nDataRecords; iRecord++){
+      for(size_t iRecord = 0; iRecord < _net->_nDataRecords; iRecord++){
         _dataShuffleIndex[iRecord] = iRecord;
       }
       _rng->getShuffled(_dataShuffleIndex);
@@ -354,19 +354,19 @@ void Backpropper::activateUnitsAndCalcGradients(std::vector<double>& values,
   }
   switch (_net->_activationType){
     case Nnet::TANH_ACT_TYPE:
-      for (int i= 0; i < values.size(); i++) {
+      for (size_t i= 0; i < values.size(); i++) {
 
         values[i] =  tanh(values[i]);
         gradients[i] =  (1-pow(values[i]+nestorovNudge,2)) ;
       }
       break;
     case Nnet::LIN_ACT_TYPE:
-      for (int i= 0; i < values.size(); i++) {
+      for (size_t i= 0; i < values.size(); i++) {
         gradients[i] =  values[i] + nestorovNudge;
       }
       break;
     case Nnet::RELU_ACT_TYPE:
-      for (int i= 0; i < values.size(); i++) {
+      for (size_t i= 0; i < values.size(); i++) {
         values[i] = fmax(0.0,values[i]);
         gradients[i] = (values[i]+nestorovNudge) > 0.0 ? 1 : 0.0;
       }
@@ -390,13 +390,13 @@ void Backpropper::flowDataThroughNetwork(std::vector<double>& inputData,
     dataflowStages.resize(0);
   }
 
-  for(int iLayer = 0; iLayer < _net->_hiddenLayerSizes.size(); iLayer++)
+  for(size_t iLayer = 0; iLayer < _net->_hiddenLayerSizes.size(); iLayer++)
   {
     nWeightsCols =  _net->_hiddenLayerSizes[iLayer];
 
     dataflowMatrix.assign(nInputRows*_net->_hiddenBiases[iLayer].size(),0.0);
-    for(int iRow = 0; iRow < nInputRows; ++iRow){
-      for(int iCol = 0; iCol <  _net->_hiddenBiases[iLayer].size(); iCol++){
+    for(size_t iRow = 0; iRow < nInputRows; ++iRow){
+      for(size_t iCol = 0; iCol <  _net->_hiddenBiases[iLayer].size(); iCol++){
         dataflowMatrix[(iCol*nInputRows)+iRow] = _net->_hiddenBiases[iLayer][iCol];
       }
     }
@@ -438,8 +438,8 @@ void Backpropper::flowDataThroughNetwork(std::vector<double>& inputData,
   dataflowMatrix.resize(0);
   dataflowMatrix = _net->_outputBiases;
   dataflowMatrix.resize(nInputRows*_net->_outputBiases.size());
-  for(int iRow = 0; iRow < nInputRows; ++iRow){
-    for(int iCol = 0; iCol <  _net->_outputBiases.size(); iCol++){
+  for(size_t iRow = 0; iRow < nInputRows; ++iRow){
+    for(size_t iCol = 0; iCol <  _net->_outputBiases.size(); iCol++){
       dataflowMatrix[(iCol*nInputRows) + iRow] = _net->_outputBiases[iCol];
     }
   }
@@ -498,8 +498,8 @@ double Backpropper::calcCost(bool doTestdata){
     switch (_lossType){
       case Backpropper::MSE_LOSS_TYPE:
         cost = 0.0;
-        for(int iRecord = 0; iRecord < nRecords; ++iRecord){
-          for(int iUnit = 0; iUnit < _net->_nOutputUnits; ++iUnit){
+        for(size_t iRecord = 0; iRecord < nRecords; ++iRecord){
+          for(size_t iUnit = 0; iUnit < _net->_nOutputUnits; ++iUnit){
             cost += pow((*fitted)[(iUnit*nRecords)+iRecord] - (*actual)[(iUnit*nRecords)+iRecord],2.0)/nRecords;
           }
         }
@@ -507,8 +507,8 @@ double Backpropper::calcCost(bool doTestdata){
         break;
       case  Backpropper::CROSS_ENT_TYPE:
         cost = 0.0;
-        for(int iRecord = 0; iRecord < nRecords; ++iRecord){
-          for(int iUnit = 0; iUnit < _net->_nOutputUnits; ++iUnit){
+        for(size_t iRecord = 0; iRecord < nRecords; ++iRecord){
+          for(size_t iUnit = 0; iUnit < _net->_nOutputUnits; ++iUnit){
             if((*actual)[(iUnit*nRecords)+iRecord] > 0.5){
               cost -= log( (*fitted)[(iUnit*nRecords)+iRecord]);
             }
@@ -553,8 +553,8 @@ double Backpropper::calcAccuracy(bool doTestdata){
   }
 
   if(allOk){
-    for(int iRecord = 0; iRecord < nRecords; ++iRecord){
-      for(int iUnit = 0; iUnit < _net->_nOutputUnits; ++iUnit){
+    for(size_t iRecord = 0; iRecord < nRecords; ++iRecord){
+      for(size_t iUnit = 0; iUnit < _net->_nOutputUnits; ++iUnit){
         if(iUnit == 0){
           maxProb = (*fitted)[(iUnit*nRecords)+iRecord];
           if((*actual)[(iUnit*nRecords)+iRecord] > 0.5){
@@ -688,7 +688,7 @@ void Backpropper::doBackPropOptimise(size_t nBatchSizeRequested,
     if (nIterations*nBatchSizeTarget < nInputData){
       nIterations++;
     }
-    for(int iEpoch = 0; iEpoch < nEpoch; iEpoch++){
+    for(size_t iEpoch = 0; iEpoch < nEpoch; iEpoch++){
       if(_shuffleEachEpoch){
         shuffleTrainData();
       }
@@ -701,7 +701,7 @@ void Backpropper::doBackPropOptimise(size_t nBatchSizeRequested,
           }
         }
       }
-      for(int iIteration = 0; iIteration < nIterations; iIteration++){
+      for(size_t iIteration = 0; iIteration < nIterations; iIteration++){
         /***********************/
         /** Calculate updates **/
         /***********************/
@@ -753,15 +753,15 @@ void Backpropper::doBackPropOptimise(size_t nBatchSizeRequested,
             case  Nnet::LIN_OUT_TYPE:
             case  Nnet::SMAX_OUT_TYPE:
               // Softmax with cross entropy has a simple derviative form for the weights on the input to the output units
-              for(int iInput = 0; iInput < nInputs; ++iInput){
-                for(int iOutput = 0; iOutput < nOutputs; ++iOutput){
+              for(size_t iInput = 0; iInput < nInputs; ++iInput){
+                for(size_t iOutput = 0; iOutput < nOutputs; ++iOutput){
                   outputWeightsUpdate[(iOutput *nInputs) +  iInput] += (1.0/nBatchSize)*(*currentInputData)[(iInput*nInputData) + iDataInBatch] * ((*generatedDataLabels)[(iOutput*nInputData) + iDataInBatch]-(*inputDataLabels)[(iOutput*nInputData) + iDataInBatch]);
 
                 }
               }
 
               // Bias units have a 1 for the input weights of the unit, otherwise same as above
-              for(int iBias = 0; iBias < nOutputs; ++iBias){
+              for(size_t iBias = 0; iBias < nOutputs; ++iBias){
                 outputBiasesUpdate[iBias] += (1.0/nBatchSize)*((*generatedDataLabels)[(iBias *nInputData) + iDataInBatch] - (*inputDataLabels)[(iBias *nInputData)  + iDataInBatch]);
               }
               break;
@@ -795,18 +795,18 @@ void Backpropper::doBackPropOptimise(size_t nBatchSizeRequested,
               case  Nnet::SMAX_OUT_TYPE:
                 // We need the derivative of the weight multiplication on the input; by the activation dervi;
                 // all chained with the derivatives of the weights on the output side of the units
-                for(int iInput = 0; iInput < nInputs; ++iInput){
-                  for(int iOutput = 0; iOutput < nOutputs; ++iOutput){
-                    for(int iNext = 0; iNext < nOutputOutputs; iNext++){
+                for(size_t iInput = 0; iInput < nInputs; ++iInput){
+                  for(size_t iOutput = 0; iOutput < nOutputs; ++iOutput){
+                    for(size_t iNext = 0; iNext < nOutputOutputs; iNext++){
                       hiddenWeightsUpdate[iWgtMat][(iOutput*nInputs) + iInput]  += (1.0/nBatchSize)*(*currentInputData)[(iInput * nInputData)+iDataInBatch]* _hiddenGradients[iWgtMat][(iOutput*nInputData) + iDataInBatch]*(*forwardWeightsUpdate)[iNext*nOutputs + iOutput];
                     }
                   }
                 }
 
                 // Biases have 1 for the weight multiplicaiton on input, otherwise the same
-                for(int iInput = 0; iInput < 1; ++iInput){
-                  for(int iOutput = 0; iOutput < nOutputs; iOutput++){
-                    for(int iNext = 0; iNext< nOutputOutputs; iNext++){
+                for(size_t iInput = 0; iInput < 1; ++iInput){
+                  for(size_t iOutput = 0; iOutput < nOutputs; iOutput++){
+                    for(size_t iNext = 0; iNext< nOutputOutputs; iNext++){
                       hiddenBiasesUpdate[iWgtMat][iOutput] += (1.0/nBatchSize)*_hiddenGradients[iWgtMat][(iOutput * nInputData) + iDataInBatch]*(*forwardWeightsUpdate)  [(iNext *nOutputs) + iOutput];
                     }
                   }
@@ -827,7 +827,7 @@ void Backpropper::doBackPropOptimise(size_t nBatchSizeRequested,
         /*********************/
 
         // First output weights and biases and then move back
-        for(int iWgt = 0; iWgt < _net->_outputWeights.size(); iWgt++){
+        for(size_t iWgt = 0; iWgt < _net->_outputWeights.size(); iWgt++){
           if(_doMomentum){
             outputWeightsMomentum[iWgt] = momentum_mu * outputWeightsMomentum[iWgt] - wgtLearnRate * outputWeightsUpdate[iWgt];
             _net->_outputWeights[iWgt] += outputWeightsMomentum[iWgt];
@@ -835,7 +835,7 @@ void Backpropper::doBackPropOptimise(size_t nBatchSizeRequested,
             _net->_outputWeights[iWgt] -= wgtLearnRate*outputWeightsUpdate[iWgt];
           }
         }
-        for(int iBias = 0; iBias < _net->_outputBiases.size(); iBias++){
+        for(size_t iBias = 0; iBias < _net->_outputBiases.size(); iBias++){
           if(_doMomentum){
             outputBiasesMomentum[iBias] = momentum_mu * outputBiasesMomentum[iBias] - biasLearnRate * outputBiasesUpdate[iBias];
             _net->_outputBiases[iBias] += outputWeightsMomentum[iBias];
@@ -845,8 +845,8 @@ void Backpropper::doBackPropOptimise(size_t nBatchSizeRequested,
         }
 
         // Back through the hidden layers updating the weights
-        for(int iWgtMat = 0; iWgtMat < _net->_hiddenWeights.size(); iWgtMat++){
-          for(int iWgt = 0; iWgt < _net->_hiddenWeights[iWgtMat].size(); iWgt++){
+        for(size_t iWgtMat = 0; iWgtMat < _net->_hiddenWeights.size(); iWgtMat++){
+          for(size_t iWgt = 0; iWgt < _net->_hiddenWeights[iWgtMat].size(); iWgt++){
             if(_doMomentum){
               hiddenWeightsMomentum[iWgtMat][iWgt] = momentum_mu * hiddenWeightsMomentum[iWgtMat][iWgt] - wgtLearnRate * hiddenWeightsUpdate[iWgtMat][iWgt];
               _net->_hiddenWeights[iWgtMat][iWgt] += hiddenWeightsMomentum[iWgtMat][iWgt] ;
@@ -855,7 +855,7 @@ void Backpropper::doBackPropOptimise(size_t nBatchSizeRequested,
 
             }
           }
-          for(int iWgt = 0; iWgt < _net->_hiddenBiases[iWgtMat].size(); iWgt++){
+          for(size_t iWgt = 0; iWgt < _net->_hiddenBiases[iWgtMat].size(); iWgt++){
             if(_doMomentum){
               hiddenBiasesMomentum[iWgtMat][iWgt] = momentum_mu * hiddenBiasesMomentum[iWgtMat][iWgt] - biasLearnRate * hiddenBiasesUpdate[iWgtMat][iWgt];
               _net->_hiddenBiases[iWgtMat][iWgt] += hiddenBiasesMomentum[iWgtMat][iWgt] ;
@@ -973,9 +973,9 @@ void Backpropper::printGradients(int iWeightsIndex){
     }
     if(nRows * nCols ==  _hiddenGradients[iWeightsIndex].size()){
       message << "( " << nRows << " x " << nCols << " )" << std::endl;
-      for(int iRow = 0; iRow < nRows; iRow++){
+      for(size_t iRow = 0; iRow < nRows; iRow++){
         message << "| " ;
-        for(int iCol = 0; iCol < nCols; iCol++){
+        for(size_t iCol = 0; iCol < nCols; iCol++){
           message << std::fixed;
           message << std::setprecision(2) << _hiddenGradients[iWeightsIndex][iRow*nCols+iCol] << " | ";
         }
@@ -1020,9 +1020,9 @@ void Backpropper::printTrainData(size_t nRecords){
     size_t rowsToPrint = std::min(_net->_nDataRecords,nRecords);
     message << "Printing data" << std::endl;
     msg::info(message);
-    for(int iRow = 0; iRow < rowsToPrint; iRow++){
+    for(size_t iRow = 0; iRow < rowsToPrint; iRow++){
       message << " Record " << iRow + 1 << ": \t";
-      for(int iCol = 0; iCol < _net->_nInputUnits; iCol++){
+      for(size_t iCol = 0; iCol < _net->_nInputUnits; iCol++){
         message << std::fixed;
         message << std::setprecision(3) << (*inputData)[(iCol*_net->_nDataRecords)+iRow] << " | ";
       }
@@ -1045,9 +1045,9 @@ void Backpropper::printTrainLabels(size_t nRecords){
     }
     msg::info(std::string("Printing Labels\n"));
     msg::info(message);
-    for(int iRow = 0; iRow < nRecords; iRow++){
+    for(size_t iRow = 0; iRow < nRecords; iRow++){
       message << "Record " << iRow + 1 << ": ";
-      for(int iCol = 0; iCol < _net->_nOutputUnits; iCol++){
+      for(size_t iCol = 0; iCol < _net->_nOutputUnits; iCol++){
         message << (*dataLabels)[(iCol*_net->_nDataRecords)+iRow] << " | ";
       }
       message << std::endl;

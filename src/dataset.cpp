@@ -349,9 +349,9 @@ void Dataset::analyseAndNorm(std::string normType){
     switch (internalNormType) {
       case DATA_STAN_NORM:
         // Welfords Method for standard deviation
-        for(int iCol = 0; iCol < _nFields; iCol++){
+        for(size_t iCol = 0; iCol < _nFields; iCol++){
           _normParam1[iCol] =  _data[iCol * _nRecords];
-          for(int iRow = 1; iRow < _nRecords; iRow++){
+          for(size_t iRow = 1; iRow < _nRecords; iRow++){
             delta = _data[(iCol*_nRecords) + iRow] - _normParam1[iCol];
             _normParam1[iCol] += delta/(iRow+1);
             _normParam2[iCol] += delta*(_data[(iCol*_nRecords) + iRow]-_normParam1[iCol]);
@@ -359,8 +359,8 @@ void Dataset::analyseAndNorm(std::string normType){
           _normParam2[iCol] = sqrt(_normParam2[iCol]/(_nRecords-1));
         }
 
-        for(int iCol = 0; iCol < _nFields; iCol++){
-          for(int iRow = 0; iRow < _nRecords; iRow++){
+        for(size_t iCol = 0; iCol < _nFields; iCol++){
+          for(size_t iRow = 0; iRow < _nRecords; iRow++){
             _data[(iCol*_nRecords) + iRow] -= _normParam1[iCol];
             if(_normParam2[iCol] > MIN_DATA_RANGE){
               _data[(iCol*_nRecords) + iRow] /= _normParam2[iCol];
@@ -372,17 +372,17 @@ void Dataset::analyseAndNorm(std::string normType){
 
         break;
       case DATA_RANGE_BOUND:
-        for(int iCol = 0; iCol < _nFields; iCol++){
+        for(size_t iCol = 0; iCol < _nFields; iCol++){
           _normParam1[iCol] = _data[iCol];
           _normParam2[iCol] = _data[iCol];
 
-          for(int iRow = 1; iRow < _nRecords; iRow++){
+          for(size_t iRow = 1; iRow < _nRecords; iRow++){
             _normParam1[iCol] = std::min(_data[(iCol*_nRecords) + iRow],_normParam1[iCol]);
             _normParam2[iCol] = std::max(_data[(iCol*_nRecords) + iRow],_normParam2[iCol]);
           }
         }
-        for(int iCol = 0; iCol < _nFields; iCol++){
-          for(int iRow = 0; iRow < _nRecords; iRow++){
+        for(size_t iCol = 0; iCol < _nFields; iCol++){
+          for(size_t iRow = 0; iRow < _nRecords; iRow++){
             _data[(iCol*_nRecords) + iRow] -= _normParam1[iCol] + ((_normParam2[iCol]- _normParam1[iCol])/2);
             if((_normParam2[iCol]- _normParam1[iCol]) > MIN_DATA_RANGE){
               _data[(iCol*_nRecords) + iRow] /= (_normParam2[iCol]- _normParam1[iCol]);
@@ -461,8 +461,8 @@ void Dataset::normWithParams(std::string normType, const std::vector<double>& pa
   if(canDo){
     switch (internalNormType) {
       case DATA_STAN_NORM:
-        for(int iCol = 0; iCol < _nFields; iCol++){
-          for(int iRow = 0; iRow < _nRecords; iRow++){
+        for(size_t iCol = 0; iCol < _nFields; iCol++){
+          for(size_t iRow = 0; iRow < _nRecords; iRow++){
             _data[(iCol*_nRecords)+iRow] -= params1[iCol];
             if(params2[iCol] > MIN_DATA_RANGE){
               _data[(iCol*_nRecords)+iRow] /= params2[iCol];
@@ -472,8 +472,8 @@ void Dataset::normWithParams(std::string normType, const std::vector<double>& pa
         _normType = DATA_STAN_NORM;
         break;
       case DATA_RANGE_BOUND:
-        for(int iCol = 0; iCol < _nFields; iCol++){
-          for(int iRow = 0; iRow < _nRecords; iRow++){
+        for(size_t iCol = 0; iCol < _nFields; iCol++){
+          for(size_t iRow = 0; iRow < _nRecords; iRow++){
             _data[(iCol*_nRecords)+iRow] -= params1[iCol] + ((params2[iCol]- params1[iCol])/2);
             if((_normParam2[iCol]- params1[iCol]) > MIN_DATA_RANGE){
               _data[(iCol*_nRecords)+iRow] /= (params2[iCol]- params1[iCol]);
@@ -595,9 +595,9 @@ void Dataset::printData(int nRecordsToPrint = 10){
     message << "From " << startRow << " to " << endRow << std::endl;
     msg::info(message);
 
-    for(int iRow = (int)startRow; iRow <= endRow; iRow++){
+    for(size_t iRow = (int)startRow; iRow <= endRow; iRow++){
       message << " Record " << iRow + 1 << ": \t";
-      for(int iCol = 0; iCol < _nFields; iCol++){
+      for(size_t iCol = 0; iCol < _nFields; iCol++){
         message << std::fixed;
         message << std::setprecision(3) << _data[(iCol* _nRecords)+iRow] << " | ";
       }
@@ -627,9 +627,9 @@ void Dataset::printLabels(int nRecordsToPrint){
     endRow = std::min(startRow + nRecordsToPrint-1, (int)_nRecords-1);
     message << "Printing Labels" << std::endl;
     msg::info(message);
-    for(int iRow = startRow; iRow <= endRow; iRow++){
+    for(size_t iRow = startRow; iRow <= endRow; iRow++){
       message << "Record " << iRow + 1 << ": ";
-      for(int iCol = 0; iCol < _nLabelFields; iCol++){
+      for(size_t iCol = 0; iCol < _nLabelFields; iCol++){
         message << _labels[(iCol* _nRecords)+iRow] << " | ";
       }
       message << std::endl;
@@ -721,8 +721,8 @@ Dataset::Dataset(Rcpp::NumericMatrix indata, Rcpp::Nullable<Rcpp::NumericMatrix>
       msg::error("The number of rows of the labels does not equal the number of rows of the data, not loading data");
     }else{
       _labels.assign(nLabelsRow*nLabelsCol, 0.0);
-      for(int iCol = 0; iCol < nLabelsCol; iCol++){
-        for(int iRow = 0; iRow < nLabelsRow; iRow++){
+      for(size_t iCol = 0; iCol < nLabelsCol; iCol++){
+        for(size_t iRow = 0; iRow < nLabelsRow; iRow++){
           _labels[iCol*nLabelsRow + iRow] = labels(iRow,iCol);
         }
       }
@@ -731,8 +731,8 @@ Dataset::Dataset(Rcpp::NumericMatrix indata, Rcpp::Nullable<Rcpp::NumericMatrix>
   }
   if(allOk){
     _data.assign(nDataRow*nDataCol, 0.0);
-    for(int iCol = 0; iCol < nDataCol; iCol++){
-      for(int iRow = 0; iRow < nDataRow; iRow++){
+    for(size_t iCol = 0; iCol < nDataCol; iCol++){
+      for(size_t iRow = 0; iRow < nDataRow; iRow++){
         _data[iCol*nDataRow + iRow] = indata(iRow,iCol);
       }
     }
@@ -778,7 +778,7 @@ SEXP Dataset::getNormParamMat() const {
 
     Rcpp::NumericMatrix params( 2 , (int)_normParam1.size() );
 
-    for(int iParam = 0; iParam < _normParam1.size(); iParam++){
+    for(size_t iParam = 0; iParam < _normParam1.size(); iParam++){
       params(0,iParam) = _normParam1[iParam];
       params(1,iParam) = _normParam2[iParam];
     }

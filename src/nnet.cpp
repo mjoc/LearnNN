@@ -123,7 +123,7 @@ Nnet::Nnet(std::vector<int> networkGeometry,
     _hiddenBiases.resize(0);
 
     if(_hiddenLayerSizes.size() > 0){
-      for(int i = 0 ; i < _hiddenLayerSizes.size(); i++) {
+      for(size_t i = 0 ; i < _hiddenLayerSizes.size(); i++) {
         _hiddenWeights.resize(i+1);
         _hiddenWeights[i].resize(nCurrentInputWidth*_hiddenLayerSizes[i]);
         _hiddenBiases.resize(i+1);
@@ -373,8 +373,8 @@ void Nnet::activateOutput(std::vector<double>& values){
       double max = 0.0;
 
       std::vector<double> numerator(_nOutputUnits);
-      for(int iRow = 0; iRow < _nDataRecords; iRow++){
-        for(int iCol = 0; iCol < _nOutputUnits; iCol++){
+      for(size_t iRow = 0; iRow < _nDataRecords; iRow++){
+        for(size_t iCol = 0; iCol < _nOutputUnits; iCol++){
           if(iCol == 0){
             max = values[(iCol*_nDataRecords)+iRow];
           }else{
@@ -384,16 +384,16 @@ void Nnet::activateOutput(std::vector<double>& values){
           }
         }
         // An adjustment to avoid overflow
-        for(int iCol = 0; iCol < _nOutputUnits; iCol++){
+        for(size_t iCol = 0; iCol < _nOutputUnits; iCol++){
           values[(iCol*_nDataRecords)+iRow] -= max;
         }
 
         denominator = 0.0;
-        for(int iCol = 0; iCol < _nOutputUnits; iCol++){
+        for(size_t iCol = 0; iCol < _nOutputUnits; iCol++){
           numerator[iCol] = exp(values[(iCol*_nDataRecords)+iRow]);
           denominator  += numerator[iCol];
         }
-        for(int iCol = 0; iCol < _nOutputUnits; iCol++){
+        for(size_t iCol = 0; iCol < _nOutputUnits; iCol++){
           values[(iCol*_nDataRecords)+iRow] = numerator[iCol]/denominator;
         }
       }
@@ -412,7 +412,7 @@ void Nnet::initialiseWeights(){
   _hiddenBiases.resize(0);
 
   if(_hiddenLayerSizes.size() > 0){
-    for(int i = 0 ; i < _hiddenLayerSizes.size(); i++) {
+    for(size_t i = 0 ; i < _hiddenLayerSizes.size(); i++) {
       _hiddenWeights.resize(i+1);
       _hiddenWeights[i].resize(nCurrentInputWidth*_hiddenLayerSizes[i], 0);
       _hiddenBiases.resize(i+1);
@@ -494,13 +494,13 @@ bool Nnet::setWgtAndBias(int iIndex, std::vector<double> weights, std::vector<do
     }
   }
   if(allOk){
-    for(int iRow = 0; iRow < nRows; iRow++){
-      for(int iCol = 0; iCol < nCols; iCol++){
+    for(size_t iRow = 0; iRow < nRows; iRow++){
+      for(size_t iCol = 0; iCol < nCols; iCol++){
         (*wgts_ptr)[iCol*nRows+iRow] = weights[(iCol*nRows)+iRow];
       }
     }
 
-    for(int iBias = 0; iBias < nCols; iBias++){
+    for(size_t iBias = 0; iBias < nCols; iBias++){
       (*biases_ptr)[iBias] = bias[iBias];
     }
   }
@@ -524,13 +524,13 @@ void Nnet::flowDataThroughNetwork(std::vector<double>* inputDataMatrix,
     dataflowStages.resize(0);
   }
 
-  for(int iLayer = 0; iLayer < _hiddenLayerSizes.size(); iLayer++)
+  for(size_t iLayer = 0; iLayer < _hiddenLayerSizes.size(); iLayer++)
   {
     nWeightsCols =  _hiddenLayerSizes[iLayer];
 
     dataflowMatrix.assign(nInputRows*_hiddenBiases[iLayer].size(),0.0);
-    for(int iRow = 0; iRow < nInputRows; ++iRow){
-      for(int iCol = 0; iCol <  _hiddenBiases[iLayer].size(); iCol++){
+    for(size_t iRow = 0; iRow < nInputRows; ++iRow){
+      for(size_t iCol = 0; iCol <  _hiddenBiases[iLayer].size(); iCol++){
         dataflowMatrix[(iCol*nInputRows)+iRow] = _hiddenBiases[iLayer][iCol];
       }
     }
@@ -551,8 +551,8 @@ void Nnet::flowDataThroughNetwork(std::vector<double>* inputDataMatrix,
   //  std::cout << "Feed forward: calculating output layer " << std::endl;
   nWeightsCols =  _nOutputUnits;
   dataflowMatrix.assign(nInputRows*_outputBiases.size(),0.0);
-  for(int iRow = 0; iRow < nInputRows; ++iRow){
-    for(int iCol = 0; iCol <  _outputBiases.size(); iCol++){
+  for(size_t iRow = 0; iRow < nInputRows; ++iRow){
+    for(size_t iCol = 0; iCol <  _outputBiases.size(); iCol++){
       dataflowMatrix[(iCol*nInputRows) + iRow] = _outputBiases[iCol];
     }
   }
@@ -609,7 +609,7 @@ void Nnet::feedForward(){
 void Nnet::writeWeights(){
   size_t nRows = 0, nCols = 0;
   nRows = _nInputUnits;
-  for(int i = 0; i < _hiddenWeights.size(); i++){
+  for(size_t i = 0; i < _hiddenWeights.size(); i++){
         nCols = _hiddenLayerSizes[i];
     std::ostringstream oss;
     oss << _outputDir << "weights" << i << ".csv";
@@ -634,7 +634,7 @@ void Nnet::writeWeights(){
 void Nnet::writeFeedForwardValues(){
   size_t nCols = 0;
 
-  for(int i = 0; i < _feedForwardValues.size(); i++){
+  for(size_t i = 0; i < _feedForwardValues.size(); i++){
     nCols = _hiddenLayerSizes[i];
     std::ostringstream oss;
     oss << _outputDir << "feedforward" << i << ".csv";
@@ -689,7 +689,7 @@ void Nnet::printGeometry(){
   message << "Input units: " << _nInputUnits << std::endl;
   msg::info(message);
   if(_hiddenLayerSizes.size()>0){
-    for(int iLayer =0; iLayer < _hiddenLayerSizes.size(); iLayer++) {
+    for(size_t iLayer =0; iLayer < _hiddenLayerSizes.size(); iLayer++) {
       message << "Hidden Layer " << iLayer + 1 << " units: " << _hiddenLayerSizes[iLayer] << std::endl;
       msg::info(message);
     }
@@ -718,9 +718,9 @@ void Nnet::printWeights(int iWeightsIndex){
     }
     if(nRows * nCols ==  _hiddenWeights[iWeightsIndex].size()){
       message << "( " << nRows << " x " << nCols << " )" << std::endl;
-      for(int iRow = 0; iRow < nRows; iRow++){
+      for(size_t iRow = 0; iRow < nRows; iRow++){
         message << "| " ;
-        for(int iCol = 0; iCol < nCols; iCol++){
+        for(size_t iCol = 0; iCol < nCols; iCol++){
           message << std::fixed;
           message << std::setprecision(2) << _hiddenWeights[iWeightsIndex][iCol*nRows+iRow] << " | ";
         }
@@ -769,9 +769,9 @@ void Nnet::printOutputWeights(){
     }
 
     message << "( " << nRows << " x " << nCols << " )" << std::endl;
-    for(int iRow = 0; iRow < nRows; iRow++){
+    for(size_t iRow = 0; iRow < nRows; iRow++){
       message << "| " ;
-      for(int iCol = 0; iCol < nCols; iCol++){
+      for(size_t iCol = 0; iCol < nCols; iCol++){
         message << std::fixed;
         message << std::setprecision(2) << _outputWeights[iCol*nRows+iRow] << " | ";
       }
@@ -804,9 +804,9 @@ void Nnet::printOutputUnitValues(size_t nRecords){
       nRecords = std::min(nRecords, _nDataRecords);
     }
 
-    for(int iRow = 0; iRow < nRecords; iRow++){
+    for(size_t iRow = 0; iRow < nRecords; iRow++){
       message << " Record " << iRow + 1 << ": \t";
-      for(int iCol = 0; iCol < _nOutputUnits; iCol++){
+      for(size_t iCol = 0; iCol < _nOutputUnits; iCol++){
         message << std::fixed;
         message << std::setprecision(2) << _generatedLabels[(iCol*_nDataRecords)+iRow] << " | ";
       }
@@ -829,9 +829,9 @@ void Nnet::printFeedForwardValues(int iIndex){
     nCols = _hiddenLayerSizes[iIndex];
     if(nRows * nCols ==  _feedForwardValues[iIndex].size()){
       message << "( " << nRows << " x " << nCols << " )" << std::endl;
-      for(int iRow = 0; iRow < nRows; iRow++){
+      for(size_t iRow = 0; iRow < nRows; iRow++){
         message << "| " ;
-        for(int iCol = 0; iCol < nCols; iCol++){
+        for(size_t iCol = 0; iCol < nCols; iCol++){
           message << std::fixed;
           message << std::setprecision(2) << _feedForwardValues[iIndex][iCol*nRows +iRow] << " | ";
         }
@@ -944,7 +944,7 @@ Nnet::Nnet(Rcpp::IntegerVector networkGeometry,
     _hiddenBiases.resize(0);
 
     if(_hiddenLayerSizes.size() > 0){
-      for(int i = 0 ; i < _hiddenLayerSizes.size(); i++) {
+      for(size_t i = 0 ; i < _hiddenLayerSizes.size(); i++) {
         _hiddenWeights.resize(i+1);
         _hiddenWeights[i].resize(nCurrentInputWidth*_hiddenLayerSizes[i]);
         _hiddenBiases.resize(i+1);
@@ -984,8 +984,8 @@ SEXP Nnet::generatedLabelsR() const {
   if(allOk){
     Rcpp::NumericMatrix generatedLabels( _nDataRecords , (int)_nOutputUnits);
 
-    for(int iDatum = 0; iDatum < _nDataRecords; iDatum++){
-      for(int iUnit = 0; iUnit < _nOutputUnits; iUnit++){
+    for(size_t iDatum = 0; iDatum < _nDataRecords; iDatum++){
+      for(size_t iUnit = 0; iUnit < _nOutputUnits; iUnit++){
         generatedLabels(iDatum,iUnit) = _generatedLabels[iUnit*_nDataRecords + iDatum];
       }
     }
@@ -1061,13 +1061,13 @@ SEXP Nnet::getWgtAndBiasR(int iIndex) const{
   if(allOk){
     Rcpp::NumericMatrix weightsMatrix((int)nRows , (int)nCols);
     Rcpp::NumericVector biasVector((int)nCols);
-    for(int iRow = 0; iRow < nRows; iRow++){
-      for(int iCol = 0; iCol < nCols; iCol++){
+    for(size_t iRow = 0; iRow < nRows; iRow++){
+      for(size_t iCol = 0; iCol < nCols; iCol++){
         weightsMatrix(iRow,iCol) =  (*wgts_ptr)[iCol*nRows+iRow];
       }
     }
 
-    for(int iBias = 0; iBias < nCols; iBias++){
+    for(size_t iBias = 0; iBias < nCols; iBias++){
       biasVector(iBias) =  (*biases_ptr)[iBias];
     }
 
@@ -1141,13 +1141,13 @@ Rcpp::LogicalVector Nnet::setWgtAndBiasR(int iIndex, Rcpp::NumericMatrix weights
     }
   }
   if(allOk){
-    for(int iRow = 0; iRow < nRows; iRow++){
-      for(int iCol = 0; iCol < nCols; iCol++){
+    for(size_t iRow = 0; iRow < nRows; iRow++){
+      for(size_t iCol = 0; iCol < nCols; iCol++){
         (*wgts_ptr)[iCol*nRows+iRow] = weights(iRow,iCol);
       }
     }
 
-    for(int iBias = 0; iBias < nCols; iBias++){
+    for(size_t iBias = 0; iBias < nCols; iBias++){
       (*biases_ptr)[iBias] = bias(iBias);
     }
   }
@@ -1183,9 +1183,9 @@ SEXP Nnet::getFFValues(int iIndex) const{
 
   if(allOk){
     Rcpp::NumericMatrix feedforwardMatrix((int)nRows , (int)nCols);
-    for(int iRow = 0; iRow < nRows; iRow++){
+    for(size_t iRow = 0; iRow < nRows; iRow++){
       message << "| " ;
-      for(int iCol = 0; iCol < nCols; iCol++){
+      for(size_t iCol = 0; iCol < nCols; iCol++){
         feedforwardMatrix(iRow,iCol) =  _feedForwardValues[iIndex][iCol*nRows +iRow];
       }
     }

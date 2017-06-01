@@ -43,21 +43,21 @@ bool mat_ops::matMul(size_t Arows, size_t Acols, std::vector<double>& A, size_t 
   }
 /*
   message << "A: ";
-  for(int i = 0; i <A.size(); i++ ){
+  for(size_t i = 0; i <A.size(); i++ ){
     message << A[i] << " ";
   }
   message << std::endl;
   msg::info(message);
 
   message << "B: ";
-  for(int i = 0; i <B.size(); i++ ){
+  for(size_t i = 0; i <B.size(); i++ ){
     message << B[i] << " ";
   }
   message << std::endl;
   msg::info(message);
 
   message << "C: ";
-  for(int i = 0; i <C.size(); i++ ){
+  for(size_t i = 0; i <C.size(); i++ ){
     message << C[i] << " ";
   }
   message << std::endl;
@@ -235,8 +235,8 @@ gsl_matrix* mat_ops::gsl_pca_project(const gsl_matrix* data, unsigned int L, gsl
 void mat_ops::writeMatrix(std::string filename, std::vector<double> outMat, size_t nRows, size_t nCols){
   std::ofstream myfile;
   myfile.open (filename);
-  for(int iRow = 0; iRow < nRows; iRow++){
-    for(int iCol = 0; iCol < nCols; iCol++){
+  for(size_t iRow = 0; iRow < nRows; iRow++){
+    for(size_t iCol = 0; iCol < nCols; iCol++){
       myfile << outMat[(iCol *nRows) + iRow] ;
       if(iCol < nCols - 1){
         myfile << ", ";
