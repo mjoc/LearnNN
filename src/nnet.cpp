@@ -9,6 +9,7 @@
 #include "nnet.hpp"
 #include "message.hpp"
 #include "backprop.hpp"
+#include "ctime"
 
 #define MIN_DATA_RANGE 1e-4
 
@@ -371,30 +372,30 @@ void Nnet::activateOutput(std::vector<double>& values){
       // std::cout << "Activate Softmax final layer" << std::endl;
       double denominator = 0.0;
       double max = 0.0;
-
+      size_t nRows = values.size()/ _nOutputUnits;
       std::vector<double> numerator(_nOutputUnits);
-      for(size_t iRow = 0; iRow < _nDataRecords; iRow++){
+      for(size_t iRow = 0; iRow < nRows; iRow++){
         for(size_t iCol = 0; iCol < _nOutputUnits; iCol++){
           if(iCol == 0){
-            max = values[(iCol*_nDataRecords)+iRow];
+            max = values[(iCol*nRows)+iRow];
           }else{
-            if(values[(iCol*_nDataRecords)+iRow]>max){
-              max = values[(iCol*_nDataRecords)+iRow];
+            if(values[(iCol*nRows)+iRow]>max){
+              max = values[(iCol*nRows)+iRow];
             }
           }
         }
         // An adjustment to avoid overflow
         for(size_t iCol = 0; iCol < _nOutputUnits; iCol++){
-          values[(iCol*_nDataRecords)+iRow] -= max;
+          values[(iCol*nRows)+iRow] -= max;
         }
 
         denominator = 0.0;
         for(size_t iCol = 0; iCol < _nOutputUnits; iCol++){
-          numerator[iCol] = exp(values[(iCol*_nDataRecords)+iRow]);
+          numerator[iCol] = exp(values[(iCol*nRows)+iRow]);
           denominator  += numerator[iCol];
         }
         for(size_t iCol = 0; iCol < _nOutputUnits; iCol++){
-          values[(iCol*_nDataRecords)+iRow] = numerator[iCol]/denominator;
+          values[(iCol*nRows)+iRow] = numerator[iCol]/denominator;
         }
       }
       break;
@@ -432,7 +433,7 @@ void Nnet::initialiseWeights(){
   return;
 }
 
-bool Nnet::setWgtAndBias(int iIndex, std::vector<double> weights, std::vector<double> bias){
+bool Nnet::setCMWgtAndBias(int iIndex, std::vector<double> weights, std::vector<double> bias){
   bool   allOk = true;
   bool doOutputWeights = false;
   std::vector<double> *wgts_ptr = NULL;
@@ -507,6 +508,80 @@ bool Nnet::setWgtAndBias(int iIndex, std::vector<double> weights, std::vector<do
   return allOk;
 }
 
+bool Nnet::setRMWgtAndBias(int iIndex, std::vector<double> weights, std::vector<double> bias){
+  bool   allOk = true;
+  bool doOutputWeights = false;
+  std::vector<double> *wgts_ptr = NULL;
+  std::vector<double> *biases_ptr = NULL;
+  std::ostringstream message;
+  
+  if(iIndex < 0){
+    msg::error(std::string("Invalid index, less than 0\n"));
+    allOk = false;
+  }
+  if(allOk){
+    if (iIndex > _hiddenWeights.size()){
+      message << "Invalid index, greater than " << _hiddenWeights.size() << std::endl;
+      msg::error(message);
+      allOk = false;
+    }
+  }
+  
+  if(allOk){
+    // Convert from R 1 index to C++ 0 index
+    
+    if(iIndex == _hiddenWeights.size()){
+      doOutputWeights = true;
+      wgts_ptr = &_outputWeights;
+      biases_ptr = &_outputBiases;
+    }else{
+      wgts_ptr = &_hiddenWeights[iIndex];
+      biases_ptr = &_hiddenBiases[iIndex];
+    }
+  }
+  
+  size_t nRows = 0;
+  size_t nCols = 0;
+  
+  if(allOk){
+    if(iIndex == 0){
+      nRows = _nInputUnits;
+    }else{
+      nRows = _hiddenLayerSizes[iIndex-1];
+    }
+    if(doOutputWeights){
+      nCols = _nOutputUnits;
+    }else{
+      nCols = _hiddenLayerSizes[iIndex];
+    }
+  }
+  if(allOk){
+    if(nRows * nCols !=  weights.size()) {
+      message << "Weights matrix expected to be " << nRows << " by " << nCols << " but found to be " << weights.size() << std::endl;
+      msg::error(message);
+      allOk = false;
+    }
+  }
+  if(allOk){
+    if(nCols != bias.size()){
+      message << "Bias vector expected to be " << nCols << " but found to be " << bias.size() << std::endl;
+      msg::error(message);
+      allOk = false;
+    }
+  }
+  if(allOk){
+    for(size_t iRow = 0; iRow < nRows; iRow++){
+      for(size_t iCol = 0; iCol < nCols; iCol++){
+        (*wgts_ptr)[iCol*nRows+iRow] = weights[(iRow*nCols)+iCol];
+      }
+    }
+    
+    for(size_t iBias = 0; iBias < nCols; iBias++){
+      (*biases_ptr)[iBias] = bias[iBias];
+    }
+  }
+  return allOk;
+}
 
 
 
@@ -607,25 +682,34 @@ void Nnet::feedForward(){
 }
 
 void Nnet::writeWeights(){
+  std::time_t rawtime;
+  std::tm* timeinfo;
+  char date_and_time[80];
+  
+  std::time(&rawtime);
+  timeinfo = std::localtime(&rawtime);
+  
+  std::strftime(date_and_time,80,"%Y%m%d_%H%M",timeinfo);
+  
   size_t nRows = 0, nCols = 0;
   nRows = _nInputUnits;
   for(size_t i = 0; i < _hiddenWeights.size(); i++){
         nCols = _hiddenLayerSizes[i];
     std::ostringstream oss;
-    oss << _outputDir << "weights" << i << ".csv";
+    oss << _outputDir << "weights" << i << "_" << date_and_time << ".csv";
     mat_ops::writeMatrix(oss.str(), _hiddenWeights[i],nRows,nCols);
     oss.str(std::string());
-    oss << _outputDir << "bias" << i << ".csv";
+    oss << _outputDir << "bias" << i << "_" << date_and_time << ".csv";
     mat_ops::writeMatrix(oss.str(), _hiddenBiases[i],1,nCols);
     nRows = _hiddenLayerSizes[i];
  }
   nCols = _nOutputUnits;
   std::ostringstream oss;
-  oss << _outputDir << "weights" << _hiddenWeights.size() << ".csv";
+  oss << _outputDir << "weights" << _hiddenWeights.size() << "_" << date_and_time << ".csv";
   mat_ops::writeMatrix(oss.str(), _outputWeights,nRows,nCols);
 
   oss.str(std::string());
-  oss << _outputDir << "bias" << _hiddenWeights.size() << ".csv";
+  oss << _outputDir << "bias" << _hiddenWeights.size() << "_" << date_and_time << ".csv";
   mat_ops::writeMatrix(oss.str(), _outputBiases,1,nCols);
 
   return;

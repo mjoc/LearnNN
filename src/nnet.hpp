@@ -105,8 +105,9 @@ public:
   //bool setDataAndLabels(Dataset dataToClamp);
 
   void initialiseWeights();
-  bool setWgtAndBias(int iIndex, std::vector<double> wgts, std::vector<double> bias);
-
+  bool setCMWgtAndBias(int iIndex, std::vector<double> wgts, std::vector<double> bias);
+  bool setRMWgtAndBias(int iIndex, std::vector<double> wgts, std::vector<double> bias);
+  
   void feedForward();
 
 

@@ -234,6 +234,7 @@ gsl_matrix* mat_ops::gsl_pca_project(const gsl_matrix* data, unsigned int L, gsl
 
 void mat_ops::writeMatrix(std::string filename, std::vector<double> outMat, size_t nRows, size_t nCols){
   std::ofstream myfile;
+  myfile << std::setprecision(20);
   myfile.open (filename);
   for(size_t iRow = 0; iRow < nRows; iRow++){
     for(size_t iCol = 0; iCol < nCols; iCol++){

@@ -13,6 +13,8 @@
 #include <cmath>
 #include <iomanip>
 #include <sstream>
+#include <chrono>
+
 
 #ifndef IGNORE_THIS_RCPP_CODE
 #include "Rcpp.h"
@@ -55,6 +57,7 @@ Backpropper::Backpropper(Nnet &net){
     _hiddenGradients[i].assign(net._hiddenWeights[i].size(),0.0);
   }
 
+  _doTestCost = false;
   _testdataLoaded = false;
 
 }
@@ -156,6 +159,7 @@ bool Backpropper::setTestData(Dataset& testdata){
     _testdata = &testdata;
     _testInputData = _testdata->data();
     _testdataFeedForwardValues.resize(0);
+    _doTestCost = true;
   }else{
     allOk = false;
   }
@@ -274,7 +278,7 @@ void Backpropper::shuffleTrainData(){
       for(size_t iLabel = 0; iLabel < _net->_nDataRecords ; iLabel++ ){
         for(size_t iLabelClass = 0; iLabelClass < _net->_nOutputUnits; iLabelClass++){
           if((*dataLabels)[iLabelClass * nDataRecords +  iLabel ] > 0.8){
-            indataShuffle[iLabelClass].push_back(iLabel);
+            indataShuffle[iLabelClass].push_back((int)iLabel);
             break;
           }
         }
@@ -304,7 +308,7 @@ void Backpropper::shuffleTrainData(){
     }else{
       _dataShuffleIndex.resize(_net->_nDataRecords);
       for(size_t iRecord = 0; iRecord < _net->_nDataRecords; iRecord++){
-        _dataShuffleIndex[iRecord] = iRecord;
+        _dataShuffleIndex[iRecord] = (int)iRecord;
       }
       _rng->getShuffled(_dataShuffleIndex);
     }
@@ -468,6 +472,14 @@ void Backpropper::flowDataThroughNetwork(std::vector<double>& inputData,
   return;
 }
 
+double Backpropper::calcTrainCost(){
+  return calcCost(false);
+}
+
+double Backpropper::calcTestCost(){
+  return calcCost(true);
+}
+
 double Backpropper::calcCost(bool doTestdata){
   std::vector<double> *actual = NULL;
   std::vector<double> *fitted = NULL;
@@ -520,6 +532,15 @@ double Backpropper::calcCost(bool doTestdata){
   }
   return cost;
 }
+
+double Backpropper::calcTrainAccuracy(){
+  return calcAccuracy(false);
+}
+
+double Backpropper::calcTestAccuracy(){
+  return calcAccuracy(true);
+}
+
 
 double Backpropper::calcAccuracy(bool doTestdata){
   size_t nRecords = 0;
@@ -630,7 +651,9 @@ void Backpropper::doBackPropOptimise(size_t nBatchSizeRequested,
   const std::vector<double>* inputDataLabels = _net->_dataLabels;
   const std::vector<double>* generatedDataLabels = &_net->_generatedLabels;
   const size_t nInputData = _net->_nDataRecords;
-
+  std::chrono::high_resolution_clock::time_point t1, t2;
+  size_t nEpochCount = 0;
+  
   std::vector<double> *currentInputData, *forwardWeightsUpdate; //, *biases, *gradients;
 
   if((!_net->dataAndLabelsLoaded()) || (nInputData==0) ){
@@ -668,27 +691,15 @@ void Backpropper::doBackPropOptimise(size_t nBatchSizeRequested,
 
     }
 
-    feedForwardTrainData(true,0.0);
-
-
-    initialCost = calcCost();
-    _epochTrainCostUpdates.push_back(initialCost);
-    message << "Initial Cost: " << initialCost <<  std::endl;
-    msg::info(message);
-    if(_doTestCost){
-      _testdataFeedForwardValues.resize(0);
-      _net->flowDataThroughNetwork(_testInputData, _testdataFeedForwardValues, _testdataGeneratedValues);
-      double testCost = calcCost();
-      _epochTestCostUpdates.push_back(testCost);
-      message << "Initial Test Cost: " << testCost <<  std::endl;
-      msg::info(message);
-    }
-
     size_t nIterations =  nInputData/nBatchSizeTarget;
     if (nIterations*nBatchSizeTarget < nInputData){
       nIterations++;
     }
+    
+    t1 = std::chrono::high_resolution_clock::now();
+    
     for(size_t iEpoch = 0; iEpoch < nEpoch; iEpoch++){
+
       if(_shuffleEachEpoch){
         shuffleTrainData();
       }
@@ -701,6 +712,46 @@ void Backpropper::doBackPropOptimise(size_t nBatchSizeRequested,
           }
         }
       }
+      
+      feedForwardTrainData(true, 0.0);
+      
+      cost = calcTrainCost();
+      if(iEpoch == 0){
+        initialCost = cost;
+      }
+      if(std::isnan(cost)){
+        message << "Nan cost so quitting!\n";
+        msg::warn(message);
+        allOk = false;
+        break;
+      }else{
+        _epochTrainCostUpdates.push_back(cost);
+        if(iEpoch % _epochPrintSchedule == 0){
+          switch (_net->_outputType){
+            case  Nnet::LIN_OUT_TYPE:
+              message << "Starting Epoch " << iEpoch << " --  Cost " << cost << std::endl;
+              msg::info(message);
+              break;
+            case  Nnet::SMAX_OUT_TYPE:
+              double accuracy = calcTrainAccuracy();
+              message << "Starting Epoch " << iEpoch << " --  Cost " << cost << " -- Accuracy " << accuracy << "  (" << accuracy * _net->_nDataRecords << ")\n";
+              msg::info(message);
+              break;
+          }
+          
+          if(_doTestCost){
+            _testdataFeedForwardValues.resize(0);
+            _net->flowDataThroughNetwork(_testInputData,
+                                         _testdataFeedForwardValues,
+                                         _testdataGeneratedValues);
+            double testCost = calcTestCost();
+            _epochTestCostUpdates.push_back(testCost);
+            message << "Test Cost: " << testCost <<  std::endl;
+            msg::info(message);
+          }
+        }
+      }
+      
       for(size_t iIteration = 0; iIteration < nIterations; iIteration++){
         /***********************/
         /** Calculate updates **/
@@ -723,13 +774,7 @@ void Backpropper::doBackPropOptimise(size_t nBatchSizeRequested,
         }
         nOutputs = _net->_nOutputUnits;
 
-        feedForwardTrainData(true, 0.0);
-        if(iEpoch == 0 & iDataStart == 0){
-          initialCost = calcCost();
-          message << "Initial Cost Check: " << initialCost <<  std::endl;
-          msg::info(message);
-        }
-
+       
         // Zeroing the update matricies
         std::fill(outputWeightsUpdate.begin(),outputWeightsUpdate.end(),0.0);
         std::fill(outputBiasesUpdate.begin(),outputBiasesUpdate.end(),0.0);
@@ -738,9 +783,6 @@ void Backpropper::doBackPropOptimise(size_t nBatchSizeRequested,
           std::fill(hiddenWeightsUpdate[iWgtCount].begin(), hiddenWeightsUpdate[iWgtCount].end(), 0.0);
           std::fill(hiddenBiasesUpdate[iWgtCount].begin(), hiddenBiasesUpdate[iWgtCount].end(), 0.0);
         }
-
-
-
 
         for(size_t iDataIndex = iDataStart; iDataIndex < iDataStop; iDataIndex++){
           size_t iDataInBatch = 0;
@@ -867,53 +909,31 @@ void Backpropper::doBackPropOptimise(size_t nBatchSizeRequested,
       }
 
       //feedForwardTrainData();
-      cost = calcCost();
-      if(std::isnan(cost)){
-        message << "Nan cost so quitting!\n";
-        msg::warn(message);
-        allOk = false;
-        break;
-      }else{
-        _epochTrainCostUpdates.push_back(cost);
-        if(iEpoch % _epochPrintSchedule == 0){
-          switch (_net->_outputType){
-            case  Nnet::LIN_OUT_TYPE:
-              message << std::endl << "Epoch " << iEpoch << "--Cost " << cost;
-              msg::info(message);
-              break;
-            case  Nnet::SMAX_OUT_TYPE:
-              double accuracy = calcAccuracy();
-              message << std::endl << "Epoch " << iEpoch << "--Cost " << cost << "-- Accuracy " << accuracy << "  (" << accuracy * _net->_nDataRecords << ")" << std::endl;
-              msg::info(message);
-              break;
-          }
-
-          if(_doTestCost){
-            _testdataFeedForwardValues.resize(0);
-            _net->flowDataThroughNetwork(_testInputData,
-                                         _testdataFeedForwardValues,
-                                         _testdataGeneratedValues);
-            double testCost = calcCost(true);
-            _epochTestCostUpdates.push_back(testCost);
-            message << "Test Cost: " << testCost <<  std::endl;
-            msg::info(message);
-          }
-        }
-      }
       #ifndef IGNORE_THIS_RCPP_CODE
         Rcpp::checkUserInterrupt();
       #endif
     }
+    nEpochCount++;
   }
+  t2 = std::chrono::high_resolution_clock::now();
+  auto duration = std::chrono::duration_cast<std::chrono::seconds>( t2 - t1 ).count();
+  
+  message << std::fixed;
+  message << std::setprecision(2) << std::endl <<  "Approx backprop time  " << (double)duration/60 << " minutes";
+
+  message << std::setprecision(2) << std::endl <<  "Approx time per epoch " << (double)duration/nEpoch << " seconds\n";
+  
+  
+  
   if(allOk){
     feedForwardTrainData(false,0.0);
-    cost = calcCost();
+    cost = calcTrainCost();
 
     message << std::fixed;
     message << std::setprecision(2) << std::endl <<  "Cost went from " << initialCost << " to " <<  cost << std::endl;
     msg::info(message);
     if(_net->_outputType == Nnet::SMAX_OUT_TYPE){
-      message << std::setprecision(2) <<  "Final accuracy is " << 100* calcAccuracy() << "%"<< std::endl;
+      message << std::setprecision(2) <<  "Final accuracy is " << 100* calcTrainAccuracy() << "%"<< std::endl;
       msg::info(message);
     }
     if(_doTestCost){
@@ -921,18 +941,18 @@ void Backpropper::doBackPropOptimise(size_t nBatchSizeRequested,
       _net->flowDataThroughNetwork(_testInputData,
                                    _testdataFeedForwardValues,
                                    _testdataGeneratedValues);
-      double testCost = calcCost(true);
+      double testCost = calcTestCost();
       _epochTestCostUpdates.push_back(testCost);
-      message << "Test Cost: " << testCost <<  std::endl;
-      msg::info(message);
+      message << std::setprecision(2) << std::endl <<  "Cost went from " << _epochTestCostUpdates[0] << " to " <<  testCost << std::endl;
+      
       if(_net->_outputType == Nnet::SMAX_OUT_TYPE){
-        message << "Test Accuracy: " << 100*calcAccuracy() << "%" << std::endl;
+        message << "Test Accuracy: " << 100*calcTestAccuracy() << "%" << std::endl;
         msg::info(message);
       }
     }
   }
   if(!allOk){
-    msg::error("OPtimisation with Back Propagation ended in error state");
+    msg::error("Optimisation with Back Propagation ended in error state");
   }
   return ;
 }
@@ -1061,7 +1081,7 @@ void Backpropper::printTrainLabels(size_t nRecords){
 #ifndef IGNORE_THIS_RCPP_CODE
 
 SEXP Backpropper::calcCostR(){
-  double cost = calcCost(false);
+  double cost = calcTrainCost();
 
   if(cost < 0 ){
     return R_NilValue;

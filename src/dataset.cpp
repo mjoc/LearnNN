@@ -461,7 +461,11 @@ void Dataset::normWithParams(std::string normType, const std::vector<double>& pa
   if(canDo){
     switch (internalNormType) {
       case DATA_STAN_NORM:
+        _normParam1.resize(0);
+        _normParam2.resize(0);
         for(size_t iCol = 0; iCol < _nFields; iCol++){
+          _normParam1.push_back(params1[iCol]);
+          _normParam2.push_back(params2[iCol]);
           for(size_t iRow = 0; iRow < _nRecords; iRow++){
             _data[(iCol*_nRecords)+iRow] -= params1[iCol];
             if(params2[iCol] > MIN_DATA_RANGE){
@@ -472,11 +476,33 @@ void Dataset::normWithParams(std::string normType, const std::vector<double>& pa
         _normType = DATA_STAN_NORM;
         break;
       case DATA_RANGE_BOUND:
+        _normParam1.resize(0);
+        _normParam2.resize(0);
         for(size_t iCol = 0; iCol < _nFields; iCol++){
+          double minVal = 0.0, maxVal = 0.0;
+          
+          _normParam1.push_back(params1[iCol]);
+          _normParam2.push_back(params2[iCol]);
           for(size_t iRow = 0; iRow < _nRecords; iRow++){
-            _data[(iCol*_nRecords)+iRow] -= params1[iCol] + ((params2[iCol]- params1[iCol])/2);
-            if((_normParam2[iCol]- params1[iCol]) > MIN_DATA_RANGE){
-              _data[(iCol*_nRecords)+iRow] /= (params2[iCol]- params1[iCol]);
+            if(iRow == 0){
+              minVal = _data[(iCol*_nRecords)+iRow];
+              maxVal = minVal;
+            }else{
+              if(_data[(iCol*_nRecords)+iRow] < minVal){
+                minVal = _data[(iCol*_nRecords)+iRow];
+              }
+              if(_data[(iCol*_nRecords)+iRow] > maxVal){
+                maxVal = _data[(iCol*_nRecords)+iRow];
+              }
+            }
+          }
+          if(maxVal-minVal > MIN_DATA_RANGE){
+            for(size_t iRow = 0; iRow < _nRecords; iRow++){
+              _data[(iCol*_nRecords)+iRow] = params1[iCol] + (params2[iCol] * ((_data[(iCol*_nRecords)+iRow] - minVal)/(maxVal-minVal)));
+            }
+          }else{
+            for(size_t iRow = 0; iRow < _nRecords; iRow++){
+              _data[(iCol*_nRecords)+iRow] -=  - minVal;
             }
           }
         }

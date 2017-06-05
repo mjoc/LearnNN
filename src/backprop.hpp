@@ -89,6 +89,11 @@ private:
                               std::vector<double>& dataFlowMatrix,
                               bool calcTrainGradients,
                               double nesterovAdj);
+  
+  double calcCost(bool testdata = false);
+  double calcAccuracy(bool testdata = false);
+  
+
 
 public:
   Backpropper(Nnet &net);
@@ -132,9 +137,14 @@ public:
                           size_t nEpoch);
   bool fitWeights(Nnet netToFit);
 
-  double calcAccuracy(bool testdata = false);
+  
   // std::vector<double> actual, std::vector<double> fitted ,size_t nRecords, size_t nOutputUnits
-  double calcCost(bool testdata = false);
+  
+  double calcTrainCost();
+  double calcTestCost();
+  double calcTrainAccuracy();
+  double calcTestAccuracy();
+
   // std::vector<double> actual, std::vector<double> fitted ,size_t nRecords, size_t nOutputUnits
 
   void printGradients(int iLayer);
